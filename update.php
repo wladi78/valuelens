@@ -70,5 +70,8 @@ foreach ($plan as $rel => $_) {
     if (@copy($zw . '/' . $rel, $ziel)) $anzahl++;
 }
 @unlink($tmp);
+// Zwischenordner wegraeumen
+foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($zw, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) as $f) $f->isDir() ? @rmdir($f) : @unlink($f);
+@rmdir($zw);
 $jetzt = trim((string) @file_get_contents(__DIR__ . '/VERSION'));
 echo json_encode(['ok' => true, 'version' => $jetzt, 'dateien' => $anzahl, 'hinweis' => $startNeu ? 'Startdatei geändert – ValueLens einmal beenden und neu starten.' : 'Seite neu laden.']);
