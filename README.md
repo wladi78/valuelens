@@ -22,7 +22,7 @@ Alles bleibt auf deinem Rechner (Ordner `data/`). Keine Anlageberatung.
 
 **Mac**
 1. PHP installieren: `brew install php` (Homebrew: https://brew.sh)
-2. Ordner wie oben holen. Einmalig im Terminal: `chmod +x start.command`
+2. Ordner wie oben holen.
 
 ## Starten
 
