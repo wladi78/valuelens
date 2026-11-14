@@ -1,0 +1,31 @@
+        <div class="table-panel" id="tgPanel">
+          <div class="table-head">
+            <h2>Telegram-Benachrichtigungen</h2>
+          </div>
+          <div id="tgStatus" style="font-size:13px;color:var(--text-dim);margin:0 0 10px;line-height:1.7;">wird geladen…</div>
+          <details class="hint-details" style="padding:0 0 10px;">
+            <summary>ℹ️ Einrichtung in 5 Schritten</summary>
+            <ol style="padding:0 0 0 18px;margin:6px 0;font-size:13px;line-height:1.6;">
+              <li>Unten den <b>Kanal</b> wählen - jeder Kanal bekommt einen eigenen Bot.</li>
+              <li>In Telegram <b>@BotFather</b> öffnen, <code>/newbot</code> senden, Namen vergeben.</li>
+              <li>Den angezeigten <b>Token</b> kopieren und unten einfügen.</li>
+              <li>Deinem neuen Bot in Telegram <code>/start</code> schreiben.</li>
+              <li><b>Chat-ID ermitteln</b> drücken.</li>
+              <li><b>Speichern</b> - es kommt sofort eine Testnachricht.</li>
+            </ol>
+          </details>
+          <div style="display:flex;flex-direction:column;gap:8px;max-width:520px;">
+            <select id="tgChannel" style="padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);"><option value="kursalarm">Kursalarme</option><option value="analysen">Bewertungs-Meldungen (unterbewertete Titel)</option><option value="waechter">Allgemein (Ersatz)</option></select>
+            <input type="password" id="tgToken" placeholder="Bot-Token (bleibt leer = bisherigen behalten)" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" style="padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input type="text" id="tgChatId" placeholder="Chat-ID" inputmode="numeric" autocomplete="off" style="flex:1;min-width:140px;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">
+              <button type="button" class="btn ghost" id="tgFindBtn">Chat-ID ermitteln</button>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" class="btn" id="tgSaveBtn">Speichern</button>
+              <button type="button" class="btn ghost" id="tgTestBtn">Testnachricht</button>
+              <button type="button" class="btn ghost" id="tgDeleteBtn">Entfernen</button>
+            </div>
+          </div>
+        </div>
+
