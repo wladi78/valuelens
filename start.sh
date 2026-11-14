@@ -2,6 +2,8 @@
 # ValueLens starten (Mac): Doppelklick. Voraussetzung PHP 8:  brew install php
 # Laeuft nur auf diesem Rechner (127.0.0.1). Beenden: Terminal-Fenster schliessen oder Ctrl+C.
 cd "$(dirname "$0")" || exit 1
+# Vom Update abgelegte neue Startdatei uebernehmen
+if [ -f "$(basename "$0").neu" ]; then mv -f "$(basename "$0").neu" "$(basename "$0")"; chmod +x "$(basename "$0")"; exec "./$(basename "$0")"; fi
 if ! command -v php >/dev/null 2>&1; then
   echo "PHP wurde nicht gefunden. Bitte einmalig installieren:  brew install php"; read -r -p "Enter zum Schliessen"; exit 1
 fi

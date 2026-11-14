@@ -127,6 +127,14 @@ $csrf = json_encode($_SESSION['csrfToken']);
         <div id="esInfo" class="klein muted" style="margin-top:10px;"></div>
       </div>
     </div>
+    <div class="panel">
+      <div class="table-head"><h2>Update</h2></div>
+      <div class="innen">
+        <div class="zeile"><span id="upInfo" class="klein">Version wird geprüft …</span><button class="btn" id="upPruefen">Jetzt prüfen</button><button class="btn primary" id="upHolen" style="display:none;">Update holen</button>
+          <label class="klein"><input type="checkbox" id="upAuto" checked> beim Start automatisch aktualisieren</label></div>
+        <div class="muted klein" style="margin-top:6px;">Neue Fassungen kommen von GitHub (wladi78/valuelens). Deine Daten (Käufe, Watchlist, Alarme, Telegram) bleiben erhalten.</div>
+      </div>
+    </div>
   </section>
 </main>
 <script>window.CSRF_TOKEN = <?= $csrf ?>;</script>

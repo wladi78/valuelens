@@ -17,8 +17,8 @@ Alles bleibt auf deinem Rechner (Ordner `data/`). Keine Anlageberatung.
 
 **Windows**
 1. PHP installieren: Eingabeaufforderung öffnen und eingeben: `winget install PHP.PHP.8.4`
-2. Ordner `valuelens` herunterladen (GitHub: grüner Knopf „Code“ → „Download ZIP“, entpacken) oder mit Git:
-   `git clone https://github.com/wladi78/valuelens.git`
+2. ValueLens herunterladen: https://github.com/wladi78/valuelens/archive/refs/heads/main.zip
+   (oder die ZIP aus der Gruppe) und entpacken. Kein GitHub-Konto nötig.
 
 **Mac**
 1. PHP installieren: `brew install php` (Homebrew: https://brew.sh)
@@ -46,8 +46,10 @@ Kursalarme werden alle 15 Minuten geprüft, solange ValueLens geöffnet ist.
 
 ## Aktualisieren
 
-- Mit Git: im Ordner `git pull` (oder Claude Code sagen: „aktualisiere ValueLens“). Deine Daten in `data/` bleiben.
-- Ohne Git: neue ZIP holen, entpacken und den alten Ordner `data/` hineinkopieren.
+- **Automatisch:** Beim Start prüft ValueLens, ob es eine neue Version gibt, und spielt sie selbst ein
+  (abschaltbar unter Einstellungen; dort auch „Jetzt prüfen“ und „Update holen“). Deine Daten
+  (Käufe, Watchlist, Alarme, Telegram) bleiben erhalten. Kein GitHub-Konto nötig.
+- Mit Git geholt: im Ordner `git pull` (oder Claude Code sagen: „aktualisiere ValueLens“).
 
 ## Probleme
 

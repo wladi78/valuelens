@@ -3,6 +3,8 @@ rem ValueLens starten (Windows). Voraussetzung: PHP 8 - einmalig installieren mi
 rem Startet einen Server nur fuer diesen Rechner (127.0.0.1) und oeffnet den Browser. Beenden: dieses Fenster schliessen.
 setlocal
 cd /d "%~dp0"
+rem Vom Update abgelegte neue Startdatei uebernehmen (Block wird vor der Ausfuehrung komplett gelesen)
+if exist start.bat.neu (move /y start.bat.neu start.bat >nul & start "" "%~dp0start.bat" & exit /b)
 where php >nul 2>nul
 if errorlevel 1 (
   echo.
@@ -26,7 +28,7 @@ rem Erweiterungen einschalten, falls PHP ohne php.ini installiert ist (winget)
 rem Ohne php.ini: laengere Laufzeit (erster SEC-Abruf), Warnungen ins Protokoll statt in die Antwort
 set OPT=-d curl.cainfo="%CA%" -d openssl.cafile="%CA%" -d max_execution_time=300 -d display_errors=0 -d log_errors=1 -d error_log="%CD%\data\php-fehler.log" -d memory_limit=512M
 php -m | findstr /i /x "curl" >nul
-if errorlevel 1 set OPT=-d extension_dir="%PHPDIR%ext" -d extension=curl -d extension=openssl -d extension=mbstring %OPT%
+if errorlevel 1 set OPT=-d extension_dir="%PHPDIR%ext" -d extension=curl -d extension=openssl -d extension=mbstring -d extension=zip %OPT%
 if "%VALUELENS_PORT%"=="" set VALUELENS_PORT=8484
 echo.
 echo  ValueLens laeuft:  http://127.0.0.1:%VALUELENS_PORT%/

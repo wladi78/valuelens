@@ -157,6 +157,29 @@ async function vlEinstellungenSpeichern(){
   toast(r && r.ok ? 'Gespeichert.' : ('Fehler: ' + (r && r.error || '?'))); vlEinstellungenLaden();
 }
 
+// ---------- Update (neue Fassung von GitHub) ----------
+async function vlUpdatePruefen(meldung){
+  const el = document.getElementById('upInfo'), kn = document.getElementById('upHolen');
+  try{ const u = await (await fetch('update.php', {cache:'no-store'})).json();
+    if(u.fehler){ el.textContent = `Version ${u.lokal} · ${u.fehler}`; return; }
+    if(u.update){ el.innerHTML = `Version ${escapeHtml(u.lokal)} · <b class="pos">neue Version ${escapeHtml(u.neu)} verfügbar</b>${u.git ? ' – im Ordner „git pull“ ausführen' : ''}`;
+      kn.style.display = u.git ? 'none' : '';
+      // Automatisch einspielen (Standard, abschaltbar unter Einstellungen) - wie beim Start ueblich
+      if(meldung==='auto' && !u.git && vlAutoUpdate()){ toast(`ValueLens ${u.neu} wird automatisch eingespielt …`, 5000); return vlUpdateHolen(true); }
+      if(meldung) toast(`ValueLens ${u.neu} ist verfügbar – Einstellungen → Update holen.`, 7000); }
+    else { el.textContent = `Version ${u.lokal} · aktuell`; kn.style.display = 'none'; }
+  } catch(e){ el.textContent = 'Update-Prüfung fehlgeschlagen.'; }
+}
+function vlAutoUpdate(){ try{ return localStorage.getItem('valuelens_autoupdate')!=='0'; } catch(e){ return true; } }
+async function vlUpdateHolen(ohneFrage){
+  if(ohneFrage!==true && !(await confirmDialog('Neue Fassung von GitHub laden und einspielen? Deine Daten bleiben erhalten.'))) return;
+  const el = document.getElementById('upInfo'); el.textContent = 'Lade Update …';
+  try{ const r = await (await fetch('update.php', {method:'POST', headers:{'X-CSRF-Token':CSRF_TOKEN}})).json();
+    if(r.ok){ el.textContent = `Version ${r.version} eingespielt (${r.dateien} Dateien). ${r.hinweis||''} Seite lädt neu …`; toast(`ValueLens ${r.version} eingespielt.`, 4000); setTimeout(()=>location.reload(), 2500); }
+    else el.textContent = 'Update fehlgeschlagen: ' + (r.error || '?');
+  } catch(e){ el.textContent = 'Update fehlgeschlagen: ' + e.message; }
+}
+
 // ---------- Start ----------
 async function valueLensStart(){
   document.addEventListener('click', e=>{
@@ -174,6 +197,7 @@ async function valueLensStart(){
   document.getElementById('alPruefen').addEventListener('click', ()=>vlAlarmePruefen(false));
   document.getElementById('nlStarten').addEventListener('click', ()=>vlNachtlauf(true));
   document.getElementById('esSpeichern').addEventListener('click', vlEinstellungenSpeichern);
+  document.getElementById('upHolen').addEventListener('click', vlUpdateHolen);
   // Telegram-Oberflaeche
   try{ const h = await (await fetch('client/telegram-einrichtung.html')).text(); document.getElementById('tgBox').innerHTML = h; telegramEinrichtungStarten(); } catch(e){}
   await vlDepotLaden();
@@ -186,4 +210,10 @@ async function valueLensStart(){
   if(Date.now() - letzte > 15*60*1000) setTimeout(()=>vlAlarmePruefen(true), 4000);
   setInterval(()=>vlAlarmePruefen(true), 15*60*1000);
   setTimeout(()=>vlNachtlauf(false), 20000);   // einmal am Tag
+  // Update-Hinweis: hoechstens einmal am Tag als Meldung, Anzeige unter Einstellungen immer
+  let upTag = ''; try{ upTag = localStorage.getItem('valuelens_updatetag') || ''; } catch(e){}
+  const heute = new Date().toISOString().slice(0,10);
+  setTimeout(()=>{ vlUpdatePruefen(vlAutoUpdate() ? 'auto' : upTag!==heute); try{ localStorage.setItem('valuelens_updatetag', heute); } catch(e){} }, 3000);
+  const au = document.getElementById('upAuto'); if(au){ au.checked = vlAutoUpdate(); au.addEventListener('change', ()=>{ try{ localStorage.setItem('valuelens_autoupdate', au.checked ? '1' : '0'); } catch(e){} }); }
+  document.getElementById('upPruefen')?.addEventListener('click', ()=>vlUpdatePruefen(true));
 }
