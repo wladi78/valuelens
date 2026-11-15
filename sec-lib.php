@@ -10,7 +10,7 @@ define('SEC_USER_AGENT', 'ValueLens/1.0 (' . ((json_decode((string) @file_get_co
 define('SEC_TICKER_CACHE', __DIR__ . '/data/sec-tickers.json');
 define('SEC_TICKER_CACHE_MAX_AGE', 30 * 86400); // Ticker<->CIK-Zuordnung aendert sich selten
 
-function sec_curl_get($url) {
+function sec_curl_get_roh($url, &$code = null) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -27,6 +27,67 @@ function sec_curl_get($url) {
     if ($code !== 200 || !$body) return null;
     return json_decode($body, true);
 }
+
+// Quartalsweise statt fester Ablaufzeit (Nutzer 15.11.2026: "quartalweise mit Pruefung auf neue Daten, damit die Seite
+// schneller laeuft"): SEC-Zahlen gelten, bis die Firma einen neuen 10-K/10-Q (auslaendische: 20-F/40-F) einreicht -
+// hoechstens 100 Tage. Ob es eine neue Meldung gibt, fragt sec_neueste_meldung() hoechstens einmal am Tag je Firma ab
+// (1 kleiner Abruf statt rund 60). Die SEC stellt die XBRL-Zahlen erst kurz nach der Meldung bereit -> ein Zwischenspeicher
+// zaehlt erst als aktuell, wenn er mindestens 2 Tage nach dem Meldedatum entstanden ist.
+function sec_neueste_meldung($cik) {
+    $cik = str_pad(preg_replace('/\D/', '', (string) $cik), 10, '0', STR_PAD_LEFT);
+    $dir = __DIR__ . '/data/cache/sec-meldung'; $datei = "$dir/$cik.json";
+    if (is_file($datei) && time() - filemtime($datei) < 86400) {
+        $c = json_decode((string) file_get_contents($datei), true);
+        if (is_array($c)) return $c['datum'] ?? null;
+    }
+    $j = sec_curl_get_roh("https://data.sec.gov/submissions/CIK$cik.json");
+    if (!is_array($j)) return false;   // SEC nicht erreichbar
+    $r = $j['filings']['recent'] ?? []; $datum = null;
+    foreach (($r['form'] ?? []) as $i => $f) {
+        if (!preg_match('/^(10-K|10-Q|20-F|40-F)(\/A)?$/', (string) $f)) continue;
+        $dd = $r['filingDate'][$i] ?? null; if ($dd && (!$datum || $dd > $datum)) $datum = $dd;
+    }
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    @file_put_contents($datei, json_encode(['datum' => $datum, 'geprueft' => date('c')]));
+    return $datum;
+}
+// Gilt ein Zwischenspeicher noch? Ohne CIK (keine SEC-Firma, Daten von Yahoo): wie bisher $sonstTage.
+function sec_cache_frisch($datei, $cik, $sonstTage = 7) {
+    if (!is_file($datei)) return false;
+    $alter = time() - filemtime($datei);
+    if (!$cik) return $alter < $sonstTage * 86400;
+    if ($alter < 86400) return true;            // hoechstens einmal am Tag nachsehen
+    if ($alter > 100 * 86400) return false;     // spaetestens nach einem Quartal neu
+    $m = sec_neueste_meldung($cik);
+    if ($m === false) return $alter < 14 * 86400;   // SEC gerade nicht erreichbar: alten Stand noch nutzen
+    if (!$m) return true;
+    return filemtime($datei) >= strtotime($m) + 2 * 86400;
+}
+function sec_cik_fuer($symbol) {
+    $m = sec_get_cik_map(); $s = strtoupper((string) $symbol);
+    return $m[$s] ?? ($m[strtok($s, '.')] ?? null);
+}
+// Einzelabrufe (companyconcept/companyfacts) ebenfalls bis zur naechsten Meldung aufheben, gepackt (gzip).
+// Die Pause zwischen SEC-Abrufen (Limit 10/s) entfaellt, wenn die Antwort aus dem Zwischenspeicher kam: sec_pause().
+function sec_curl_get($url) {
+    $GLOBALS['sec_aus_cache'] = false;
+    if (!preg_match('~data\.sec\.gov/api/xbrl/[a-z]+/CIK(\d{10})~', $url, $m)) return sec_curl_get_roh($url);
+    $dir = __DIR__ . '/data/cache/sec-roh'; $datei = $dir . '/' . md5($url) . '.json.gz';
+    if (sec_cache_frisch($datei, $m[1])) {
+        $j = json_decode((string) @gzdecode((string) file_get_contents($datei)), true);
+        if (is_array($j)) { $GLOBALS['sec_aus_cache'] = true; return $j ?: null; }
+    }
+    $j = sec_curl_get_roh($url, $code);
+    if (is_array($j) || $code === 404) {
+        if (!is_dir($dir)) @mkdir($dir, 0700, true);
+        @file_put_contents($datei, gzencode(json_encode(is_array($j) ? $j : []), 6));
+    } elseif (is_file($datei)) {   // Abruf gescheitert: lieber der alte Stand als gar nichts
+        $alt = json_decode((string) @gzdecode((string) file_get_contents($datei)), true);
+        if (is_array($alt)) return $alt ?: null;
+    }
+    return $j;
+}
+function sec_pause() { if (empty($GLOBALS['sec_aus_cache'])) usleep(110000); }
 
 // Ticker -> 10-stellige CIK, lokal gecacht (data/sec-tickers.json), damit nicht jede Anfrage
 // erst die komplette SEC-Firmenliste (~1MB) neu laden muss.
@@ -121,7 +182,7 @@ function sec_fetch_dividend_per_share_single($symbol, $cikMap) {
     foreach (['CommonStockDividendsPerShareDeclared', 'CommonStockDividendsPerShareCashPaid'] as $tag) {
         $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
         $units = $json['units']['USD/shares'] ?? null;
-        usleep(110000);
+        sec_pause();
         if (!$units) continue;
         $series = sec_parse_annual_eps($units); // gleiche Duration-Logik (10-K, FY, ~365 Tage) passt 1:1
         if (count($series) >= 2) return $series;
@@ -192,7 +253,7 @@ function sec_fetch_profitability($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
+            sec_pause(); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
             if (!$units) continue;
             $series = $instant ? sec_parse_annual_instant($units) : sec_parse_annual_duration($units);
             if (count($series)) return end($series);
@@ -230,7 +291,7 @@ function sec_fetch_payout_trend($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
+            sec_pause(); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
             if (!$units) continue;
             $series = sec_parse_annual_duration($units);
             if (count($series)) return $series;
@@ -306,7 +367,7 @@ function sec_fetch_debt_payback($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
+            sec_pause(); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
             if (!$units) continue;
             $series = sec_parse_annual_instant($units);
             if (count($series)) return end($series);
@@ -317,7 +378,7 @@ function sec_fetch_debt_payback($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000);
+            sec_pause();
             if (!$units) continue;
             $series = sec_parse_annual_duration($units);
             if (count($series)) return end($series);
@@ -372,7 +433,7 @@ function sec_fetch_solvency($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000);
+            sec_pause();
             if (!$units) continue;
             $series = sec_parse_annual_instant($units);
             if (count($series)) return end($series);
@@ -383,7 +444,7 @@ function sec_fetch_solvency($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000);
+            sec_pause();
             if (!$units) continue;
             $series = sec_parse_annual_duration($units);
             if (count($series)) return end($series);
@@ -437,7 +498,7 @@ function sec_fetch_quality_scores($symbol, $cikMap, $currentPrice) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
+            sec_pause(); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
             if (!$units) continue;
             $series = sec_parse_annual_instant($units);
             if (count($series)) return array_slice($series, -2);
@@ -448,7 +509,7 @@ function sec_fetch_quality_scores($symbol, $cikMap, $currentPrice) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000);
+            sec_pause();
             if (!$units) continue;
             $series = sec_parse_annual_duration($units);
             if (count($series)) return array_slice($series, -2);
@@ -459,7 +520,7 @@ function sec_fetch_quality_scores($symbol, $cikMap, $currentPrice) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['shares'] ?? null;
-            usleep(110000);
+            sec_pause();
             if (!$units) continue;
             $series = sec_parse_annual_instant($units);
             if (count($series)) return array_slice($series, -2);
@@ -579,7 +640,7 @@ function sec_fetch_dcf_inputs($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
+            sec_pause(); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
             if (!$units) continue;
             $series = sec_parse_annual_duration($units);
             if (count($series) >= 2) return $series;
@@ -590,7 +651,7 @@ function sec_fetch_dcf_inputs($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000);
+            sec_pause();
             if (!$units) continue;
             $series = sec_parse_annual_instant($units);
             if (count($series)) return end($series);
@@ -601,7 +662,7 @@ function sec_fetch_dcf_inputs($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['shares'] ?? null;
-            usleep(110000);
+            sec_pause();
             if (!$units) continue;
             $series = sec_parse_annual_duration($units);
             if (count($series)) return end($series);
@@ -655,7 +716,7 @@ function sec_fetch_revenue_per_share_series($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? $json['units']['shares'] ?? null;
-            usleep(110000); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
+            sec_pause(); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
             if (!$units) continue;
             $series = sec_parse_annual_duration($units);
             if (count($series) >= 2) return $series;
@@ -688,7 +749,7 @@ function sec_fetch_cash_conversion_cycle($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000);
+            sec_pause();
             if (!$units) continue;
             $series = sec_parse_annual_instant($units);
             if (count($series)) return end($series);
@@ -699,7 +760,7 @@ function sec_fetch_cash_conversion_cycle($symbol, $cikMap) {
         foreach ($tags as $tag) {
             $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/us-gaap/{$tag}.json");
             $units = $json['units']['USD'] ?? null;
-            usleep(110000);
+            sec_pause();
             if (!$units) continue;
             $series = sec_parse_annual_duration($units);
             if (count($series)) return end($series);
@@ -746,7 +807,7 @@ function sec_fetch_quality_inputs($symbol, $cikMap) {
     $cik = $cikMap[strtoupper($symbol)] ?? null;
     if (!$cik) return null;
     $json = sec_curl_get("https://data.sec.gov/api/xbrl/companyfacts/CIK{$cik}.json");
-    usleep(110000);
+    sec_pause();
     $gaap = $json['facts']['us-gaap'] ?? null;
     if (!$gaap) return null;
 
@@ -801,7 +862,7 @@ function sec_fetch_eps_batch($symbols, $cikMap) {
         if (!$units) continue;
         $series = sec_parse_annual_eps($units);
         if (count($series) >= 2) $out[$sym] = $series;
-        usleep(110000); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
+        sec_pause(); // ~9 Anfragen/Sekunde, unter SECs Limit von 10/s bleiben
     }
     return $out;
 }

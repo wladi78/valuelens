@@ -49,7 +49,7 @@ function bewertung_reihen($symbol, $neu = false) {
     $GLOBALS['br_filed'] = [];
     $cacheDir = __DIR__ . '/data/cache/bewertung';
     $cacheFile = $cacheDir . '/' . preg_replace('/[^A-Z0-9.\-]/', '_', $symbol) . '.json';
-    if (is_file($cacheFile) && time() - filemtime($cacheFile) < 7 * 86400 && !$neu) {
+    if (!$neu && sec_cache_frisch($cacheFile, sec_cik_fuer($symbol))) {   // bis zur naechsten SEC-Meldung (sec-lib.php)
         $c = json_decode((string) file_get_contents($cacheFile), true);
         if (is_array($c)) return $c;
     }

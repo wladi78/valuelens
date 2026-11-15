@@ -91,7 +91,7 @@ function vlWatchlistNeu(){
   const syms = String(s.value||'').split(/[,;\s]+/).map(x=>x.trim().toUpperCase()).filter(x=>/^[A-Z0-9.\-^=]{1,20}$/.test(x));
   if(!syms.length){ toast('Bitte ein Symbol eingeben.'); return; }
   data.watchlist = data.watchlist||[];
-  let neu = 0; syms.forEach(y=>{ if(!data.watchlist.some(w=>w.ticker===y)){ data.watchlist.push({ticker:y, symbol:y, name: syms.length===1 ? String(n.value||'').trim() : '', sector:''}); neu++; } });
+  let neu = 0; syms.forEach(y=>{ if(!data.watchlist.some(w=>w.ticker===y)){ data.watchlist.push({ticker:y, symbol:y, name: (syms.length===1 && !/@/.test(n.value||'')) ? String(n.value||'').trim() : '', sector:''}); neu++; } });
   s.value = ''; n.value = ''; saveData(); toast(neu + ' Titel aufgenommen.');
 }
 

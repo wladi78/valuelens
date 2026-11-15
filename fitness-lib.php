@@ -7,7 +7,7 @@ require_once __DIR__ . '/bewertung-lib.php';
 function fitness_daten($symbol, $neu = false) {
     $dir = __DIR__ . '/data/cache/fitness';
     $datei = $dir . '/' . preg_replace('/[^A-Z0-9.\-]/', '_', $symbol) . '.v2.json';
-    if (!$neu && is_file($datei) && time() - filemtime($datei) < 7 * 86400) {
+    if (!$neu && sec_cache_frisch($datei, sec_cik_fuer($symbol))) {   // bis zur naechsten SEC-Meldung (sec-lib.php)
         $c = json_decode((string) file_get_contents($datei), true);
         if (is_array($c)) return $c;
     }
