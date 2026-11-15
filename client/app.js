@@ -206,7 +206,7 @@ async function vlAlarmePruefen(still){
     const zeit = new Date().toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
     if(st) st.textContent = `Letzte Prüfung ${zeit}: ${t.split('\n').pop() || 'ok'}`;
     try{ localStorage.setItem('valuelens_alarmzeit', String(Date.now())); } catch(e){}
-    if(/ausgel[oö]st:\s*[1-9]/.test(t)){ await vlDepotLaden(); vlZeichnen(); if(!still) toast('Alarm ausgelöst – siehe Telegram.'); }
+    if(/ausgel(?:o|ö|oe)st:\s*[1-9]/.test(t)){ await vlDepotLaden(); vlZeichnen(); if(!still) toast('Alarm ausgelöst – siehe Telegram.'); }
   } catch(e){ if(st) st.textContent = 'Prüfung fehlgeschlagen: ' + e.message; }
 }
 async function vlNachtlauf(manuell){
@@ -289,7 +289,7 @@ function vlChartAlsSeite(){
   if(typeof kiChartModal!=='function' || kiChartModal._vl) return;
   const orig = kiChartModal; let innen = false;
   kiChartModal = function(){
-    const o = orig.apply(this, arguments);
+    const o = orig.apply(this, arguments); vlKeinAutofill(o);
     if(!innen && !o.classList.contains('ki-voll')){ innen = true; try{ kiChartVollbild(); } finally{ innen = false; } }
     return o;
   };
@@ -299,10 +299,20 @@ function vlChartAlsSeite(){
   hoehe(); window.addEventListener('resize', hoehe);
 }
 
+// Kein Vorschlag des Passwort-Managers (Nutzer 15.11.2026: nach der Anmeldung stand die eigene Mailadresse im Feld
+// "Aktie bewerten"): Chrome haelt Textfelder fuer Benutzernamen und ignoriert autocomplete="off" - Suchfelder (type=search)
+// laesst er in Ruhe. Gilt fuer alle Textfelder der Seite und das Suchfeld im Chart.
+function vlKeinAutofill(wurzel){
+  (wurzel || document).querySelectorAll('input:not([type]), input[type="text"]').forEach(i=>{
+    i.type = 'search'; i.setAttribute('autocomplete', 'off'); i.setAttribute('data-lpignore', 'true'); i.setAttribute('data-1p-ignore', 'true');
+  });
+}
+
 // ---------- Start ----------
 async function valueLensStart(){
   if(VL_WEB) document.body.classList.add('vl-web');
   vlChartAlsSeite();
+  vlKeinAutofill();
   document.addEventListener('click', e=>{
     // Web: Watchlist/Aktien in der Kamikaze-Leiste ohne Neuladen umschalten
     const kk = e.target.closest('[data-kk-seite]'); if(kk && !e.ctrlKey && !e.metaKey){ e.preventDefault(); if(typeof kiChartSchliessen==='function' && document.getElementById('kiChartOverlay')?.classList.contains('show')){ kiChartSchliessen(); history.replaceState(null, '', location.pathname); } vlSeite(kk.dataset.kkSeite); return; }

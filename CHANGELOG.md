@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.9 – 15.11.2026
+- Fehler behoben: Ein ausgelöster Kursalarm wurde in der Seite nicht angezeigt (Meldung „Alarm ausgelöst“ kam nie).
+- Eingabefelder: kein Vorschlag des Passwort-Managers mehr (Mailadresse im Feld „Aktie bewerten“).
+
 ## 1.8 – 15.11.2026
 - **Schneller:** SEC-Zahlen bleiben gespeichert, bis die Firma einen neuen Quartals- oder Jahresbericht einreicht (einmal täglich geprüft, spätestens nach 100 Tagen neu). Fitness danach in unter 1 Sekunde, Bewertung in rund 4 Sekunden.
 - Watchlist: Der Browser trägt keine Mailadresse mehr ins Namensfeld ein.

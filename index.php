@@ -39,7 +39,7 @@ $csrf = json_encode($_SESSION['csrfToken']);
         <div class="muted klein">Symbol eingeben – jede Aktie (US mit bis zu 19 Jahren SEC-Daten, andere Börsen mit Yahoo-Daten, z. B. SAP.DE, NESN.SW).
           Reiter im Chart: Zonen · Bewertung · Fitness · Dividende · Analyse. Mit Enter öffnen.</div>
         <div class="zeile">
-          <input id="acSymbol" autocomplete="off" list="acSymbole" placeholder="z. B. KO, MSFT, O, SAP.DE" style="width:260px;">
+          <input id="acSymbol" type="search" autocomplete="off" list="acSymbole" placeholder="z. B. KO, MSFT, O, SAP.DE" style="width:260px;">
           <datalist id="acSymbole"></datalist>
           <button class="btn primary" id="acOeffnen">📈 Bewerten</button>
           <button class="btn ghost" id="acNeuerTab" data-nur-lokal>↗ In eigenem Tab</button>
@@ -57,8 +57,8 @@ $csrf = json_encode($_SESSION['csrfToken']);
       <div class="table-head"><h2>Watchlist</h2></div>
       <div class="innen">
         <div class="zeile">
-          <input id="wlSymbol" autocomplete="off" placeholder="Symbol, z. B. KO" style="width:140px;">
-          <input id="wlName" autocomplete="off" placeholder="Bezeichnung (optional)" style="width:200px;">
+          <input id="wlSymbol" type="search" autocomplete="off" placeholder="Symbol, z. B. KO" style="width:140px;">
+          <input id="wlName" type="search" autocomplete="off" placeholder="Bezeichnung (optional)" style="width:200px;">
           <button class="btn" id="wlNeu">+ Hinzufügen</button>
           <span class="muted klein">Mehrere auf einmal: Symbole mit Komma trennen (KO, PEP, MSFT).</span>
         </div>
@@ -87,7 +87,7 @@ $csrf = json_encode($_SESSION['csrfToken']);
       <div class="innen">
         <div class="muted klein">Käufe erscheinen im Chart als pinke Punkte mit Datum und Preis, dazu der Durchschnittspreis. Preis in der Währung, in der die Aktie gehandelt wird (US-Aktien: USD); Preis in € ist optional.</div>
         <div class="zeile">
-          <input id="kfSymbol" autocomplete="off" placeholder="Symbol" style="width:100px;">
+          <input id="kfSymbol" type="search" autocomplete="off" placeholder="Symbol" style="width:100px;">
           <input id="kfDatum" type="date" style="width:150px;">
           <select id="kfArt"><option value="kauf">Kauf</option><option value="verkauf">Verkauf</option></select>
           <input id="kfStueck" autocomplete="off" placeholder="Stück" inputmode="decimal" style="width:80px;">
