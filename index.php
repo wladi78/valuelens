@@ -33,6 +33,12 @@ $csrf = json_encode($_SESSION['csrfToken']);
 <main id="page-aktienchart">   <!-- id fuer die Klick-Weiche des Chart-Moduls (Liste sortieren, Zeile oeffnen) -->
   <!-- Aktie bewerten -->
   <section class="page active" id="page-aktie">
+    <div class="panel" data-nur-lokal style="border-color:#f59e0b;background:#fffbeb;"><div class="innen klein">
+      <b>📢 ValueLens zieht um:</b> Die Kamikaze-Trader nutzen ValueLens ab sofort als Webseite im Kamikaze-Bereich – Menü <b>📈 Aktien</b>
+      (mit deiner Kamikaze-Anmeldung, nichts zu installieren, Kursalarme auch bei ausgeschaltetem Rechner). Diese lokale Fassung läuft weiter,
+      bekommt aber <b>ab 22.11.2026 keine Updates mehr</b>. Deine Käufe kannst du unter <b>Meine Käufe → Als CSV herunterladen</b>
+      sichern und auf der Webseite mit <b>CSV einlesen</b> übernehmen.
+    </div></div>
     <div class="panel">
       <div class="table-head"><h2>Aktie bewerten</h2></div>
       <div class="innen">

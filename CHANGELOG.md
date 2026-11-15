@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.10 – 15.11.2026
+- **Hinweis:** ValueLens gibt es jetzt als Webseite im Kamikaze-Bereich (Menü „📈 Aktien“). Diese lokale Fassung bekommt ab 22.11.2026 keine Updates mehr. Käufe per CSV mitnehmen: Meine Käufe → Als CSV herunterladen, auf der Webseite → CSV einlesen.
+
 ## 1.9 – 15.11.2026
 - Fehler behoben: Ein ausgelöster Kursalarm wurde in der Seite nicht angezeigt (Meldung „Alarm ausgelöst“ kam nie).
 - Eingabefelder: kein Vorschlag des Passwort-Managers mehr (Mailadresse im Feld „Aktie bewerten“).
