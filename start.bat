@@ -29,6 +29,7 @@ rem Ohne php.ini: laengere Laufzeit (erster SEC-Abruf), Warnungen ins Protokoll 
 set OPT=-d curl.cainfo="%CA%" -d openssl.cafile="%CA%" -d max_execution_time=300 -d display_errors=0 -d log_errors=1 -d error_log="%CD%\data\php-fehler.log" -d memory_limit=512M
 php -m | findstr /i /x "curl" >nul
 if errorlevel 1 set OPT=-d extension_dir="%PHPDIR%ext" -d extension=curl -d extension=openssl -d extension=mbstring -d extension=zip %OPT%
+if /i "%~1"=="pruefen" (php %OPT% pruefen.php & echo. & pause & exit /b)
 if "%VALUELENS_PORT%"=="" set VALUELENS_PORT=8484
 echo.
 echo  ValueLens laeuft:  http://127.0.0.1:%VALUELENS_PORT%/

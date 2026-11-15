@@ -8,6 +8,7 @@ if ! command -v php >/dev/null 2>&1; then
   echo "PHP wurde nicht gefunden. Bitte einmalig installieren:  brew install php"; read -r -p "Enter zum Schliessen"; exit 1
 fi
 mkdir -p data
+if [ "$1" = "pruefen" ]; then php pruefen.php; exit $?; fi
 PORT="${VALUELENS_PORT:-8484}"
 echo; echo " ValueLens laeuft:  http://127.0.0.1:$PORT/   (Beenden: Ctrl+C)"; echo
 if [ "$VALUELENS_KEIN_BROWSER" != "1" ]; then (sleep 2; if command -v open >/dev/null; then open "http://127.0.0.1:$PORT/"; else xdg-open "http://127.0.0.1:$PORT/" >/dev/null 2>&1; fi) & fi

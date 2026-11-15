@@ -180,6 +180,33 @@ async function vlUpdateHolen(ohneFrage){
   } catch(e){ el.textContent = 'Update fehlgeschlagen: ' + e.message; }
 }
 
+// ---------- Hilfe: Installation pruefen, Aenderungsliste ----------
+async function vlPruefen(){
+  const tab = document.getElementById('prTab'); tab.innerHTML = '<tr><td class="muted">prüfe … (bis 30 Sekunden)</td></tr>';
+  try{ const r = await (await fetch('pruefen.php', {cache:'no-store'})).json();
+    const wort = {gruen:'in Ordnung', gelb:'Hinweis', rot:'Fehler'};
+    tab.innerHTML = `<tbody>${r.punkte.map(p=>`<tr><td><span class="ampel ${p.ampel}" title="${wort[p.ampel]}"></span>${escapeHtml(p.name)}</td><td>${escapeHtml(p.text)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="2"><span class="ampel ${r.gesamt}"></span><b>Gesamt: ${r.gesamt==='gruen'?'alles in Ordnung':(r.gesamt==='gelb'?'läuft, mit Hinweisen':'es gibt Fehler – siehe rot')}</b></td></tr></tfoot>`;
+  } catch(e){ tab.innerHTML = '<tr><td class="neg">Prüfung fehlgeschlagen: ' + escapeHtml(e.message) + '</td></tr>'; }
+}
+function vlAenderungenHtml(liste){
+  return liste.map(a=>`<div style="margin-bottom:10px;"><b>Version ${escapeHtml(a.version)}</b>${a.datum ? ` <span class="muted klein">· ${escapeHtml(a.datum)}</span>` : ''}<ul style="margin:4px 0 0 18px;padding:0;">${a.punkte.map(p=>`<li class="klein" style="margin:2px 0;">${escapeHtml(p).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>')}</li>`).join('')}</ul></div>`).join('') || '<span class="muted klein">keine Einträge</span>';
+}
+async function vlNeuInVersion(){
+  try{ const v = await (await fetch('version.php', {cache:'no-store'})).json();
+    document.getElementById('neuListe').innerHTML = vlAenderungenHtml(v.aenderungen || []);
+    let gesehen = null; try{ gesehen = localStorage.getItem('valuelens_version_gesehen'); } catch(e){}
+    try{ localStorage.setItem('valuelens_version_gesehen', v.version); } catch(e){}
+    if(gesehen===null){ vlSeite('hilfe'); toast('Willkommen bei ValueLens – hier die wichtigsten Fragen. Los geht es im Reiter „Aktie“.', 7000); return; }
+    // nach einem Update: alles anzeigen, was seit der zuletzt gesehenen Version neu ist
+    const neu = (v.aenderungen||[]).filter(a=>vlVersionGroesser(a.version, gesehen));
+    if(neu.length){ document.getElementById('neuTitel').textContent = `Neu in ValueLens ${v.version}`;
+      document.getElementById('neuInhalt').innerHTML = vlAenderungenHtml(neu); document.getElementById('neuOverlay').classList.add('show'); }
+  } catch(e){}
+}
+function vlVersionGroesser(a, b){ const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+  for(let i=0;i<Math.max(x.length,y.length);i++){ const d = (x[i]||0)-(y[i]||0); if(d) return d>0; } return false; }
+
 // ---------- Start ----------
 async function valueLensStart(){
   document.addEventListener('click', e=>{
@@ -198,6 +225,8 @@ async function valueLensStart(){
   document.getElementById('nlStarten').addEventListener('click', ()=>vlNachtlauf(true));
   document.getElementById('esSpeichern').addEventListener('click', vlEinstellungenSpeichern);
   document.getElementById('upHolen').addEventListener('click', vlUpdateHolen);
+  document.getElementById('prStarten').addEventListener('click', vlPruefen);
+  document.getElementById('neuZu').addEventListener('click', ()=>document.getElementById('neuOverlay').classList.remove('show'));
   // Telegram-Oberflaeche
   try{ const h = await (await fetch('client/telegram-einrichtung.html')).text(); document.getElementById('tgBox').innerHTML = h; telegramEinrichtungStarten(); } catch(e){}
   await vlDepotLaden();
@@ -205,6 +234,7 @@ async function valueLensStart(){
   if(location.hash.startsWith('#chart=')) s = 'aktie';
   vlSeite(document.getElementById('page-'+s) ? s : 'aktie');
   vlEinstellungenLaden();
+  vlNeuInVersion();
   // Kursalarme alle 15 Minuten, solange die Seite offen ist; beim Start, wenn die letzte Pruefung laenger her ist
   let letzte = 0; try{ letzte = Number(localStorage.getItem('valuelens_alarmzeit')||0); } catch(e){}
   if(Date.now() - letzte > 15*60*1000) setTimeout(()=>vlAlarmePruefen(true), 4000);

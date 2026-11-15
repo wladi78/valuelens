@@ -1,5 +1,11 @@
 # Änderungen
 
+## 1.2 – 15.11.2026
+- Neuer Reiter **Hilfe**: häufige Fragen (Linien im Chart, Renditerechner, Alarme, Telegram, Daten sichern, Updates).
+- **Installation prüfen** mit Ampel: PHP, Erweiterungen, Zertifikate, Yahoo, SEC, Telegram, Updates – auch ohne Browser per `pruefen.bat` (Windows) bzw. `./start.command pruefen`.
+- Nach einem Update zeigt ValueLens, was neu ist.
+- Fehler behoben: Grafiken unter **Fitness** blieben leer (die Diagramm-Bibliothek kam nicht mehr vom fremden Server). Beide Diagramm-Bibliotheken liegen jetzt im Ordner `client/lib` – kein fremder Server mehr nötig.
+
 ## 1.1 – 14.11.2026
 Auto-Update: beim Start neue Fassung von GitHub laden und einspielen (abschaltbar); manuelle Prüfung unter Einstellungen. Daten bleiben erhalten.
 

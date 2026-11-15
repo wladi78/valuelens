@@ -53,6 +53,8 @@ Kursalarme werden alle 15 Minuten geprüft, solange ValueLens geöffnet ist.
 
 ## Probleme
 
+Erst **Hilfe → Installation prüfen** – zeigt mit Ampel, was fehlt. Ohne Browser: Windows `pruefen.bat`, Mac/Linux `./start.command pruefen`.
+
 | Meldung | Lösung |
 |---|---|
 | „PHP wurde nicht gefunden“ | PHP installieren (siehe oben), danach das Fenster neu öffnen |

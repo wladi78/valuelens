@@ -2,7 +2,7 @@
 // gezeichnet mit Lightweight Charts von TradingView (frei, Apache-2.0). Die Bibliothek wird erst beim ersten Oeffnen
 // geladen. Kerzen kommen ueber quote.php?ohlc=1 von Yahoo; Zonen, Fair Value, Support/Widerstand und Order Block
 // aus der Analyse - immer die aktuellste, ohne Kopieren.
-const KI_CHART_LIB = 'https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js';
+const KI_CHART_LIB = 'client/lib/lightweight-charts.js';   // lokal beigelegt (Apache-2.0), kein fremder Server
 let _kiChart = null, _kiChartLibPromise = null;
 // Institutionelle Order Blocks (Smart-Money-Lesart, Nutzerwunsch 05.11.2026), aus den Kerzen berechnet:
 // Bullisch = letzte rote Kerze vor einem kraeftigen Anstieg (Displacement: Schluss innerhalb von 3 Kerzen mehr als
