@@ -12,16 +12,18 @@ $csrf = json_encode($_SESSION['csrfToken']);
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='14' cy='14' r='9' fill='none' stroke='%2310b981' stroke-width='4'/><line x1='21' y1='21' x2='29' y2='29' stroke='%2310b981' stroke-width='4' stroke-linecap='round'/></svg>">
 <script src="client/lib/chart.umd.min.js"></script>
 <link rel="stylesheet" href="client/valuelens.css">
+<meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrfToken']) ?>">
+<meta name="vl-modus" content="<?= defined('VL_WEB') ? 'web' : 'lokal' ?>">
 </head>
 <body>
 <header class="kopf">
-  <div class="marke">🔍 <b>ValueLens</b> <span class="muted">Aktien bewerten · lokal</span></div>
+  <div class="marke">🔍 <b>ValueLens</b> <span class="muted">Aktien bewerten<span data-nur-lokal> · lokal</span></span> <a data-nur-web href="/" class="btn ghost" style="padding:3px 10px;margin-left:8px;">← Kamikaze</a></div>
   <nav>
     <button class="nav active" data-seite="aktie">Aktie</button>
     <button class="nav" data-seite="liste">Watchlist &amp; Filter</button>
     <button class="nav" data-seite="kaeufe">Meine Käufe</button>
     <button class="nav" data-seite="alarme">Alarme &amp; Telegram</button>
-    <button class="nav" data-seite="einstellungen">Einstellungen</button>
+    <button class="nav" data-seite="einstellungen" data-nur-lokal>Einstellungen</button>
     <button class="nav" data-seite="hilfe">Hilfe</button>
   </nav>
 </header>
@@ -139,7 +141,7 @@ $csrf = json_encode($_SESSION['csrfToken']);
   </section>
   <!-- Hilfe -->
   <section class="page" id="page-hilfe">
-    <div class="panel">
+    <div class="panel" data-nur-lokal>
       <div class="table-head"><h2>Installation prüfen</h2><button class="btn primary" id="prStarten">Jetzt prüfen</button></div>
       <div class="innen">
         <div class="muted klein">Prüft PHP, Erweiterungen, Zertifikate, Datenordner, Yahoo, SEC, Telegram und Updates. Es wird nichts gesendet.
@@ -156,28 +158,26 @@ $csrf = json_encode($_SESSION['csrfToken']);
         <details><summary>Warum zeigt „Fitness“ bei manchen Aktien nichts?</summary><p>Die Fitness-Daten kommen aus den Jahresberichten der US-Börsenaufsicht SEC. Dort berichten nur US-Firmen und an US-Börsen gelistete ausländische Firmen (ADRs). Europäische Titel wie SAP.DE haben dort keine Daten – Bewertung und Chart gehen trotzdem.</p></details>
         <details><summary>Warum dauert der erste Aufruf so lange?</summary><p>Beim ersten Mal lädt ValueLens bis zu 20 Jahre Berichte von der SEC (bis ~20 Sekunden je Firma). Danach liegen sie 7 Tage auf deinem Rechner, und alles geht schnell.</p></details>
         <details><summary>Wie setze ich einen Kursalarm?</summary><p>Im Chart oben auf <b>🔔 Alarm</b>: fertige Grenzen (Fair Value, Normal-KGV …) oder einen eigenen Preis über/unter. <b>Fair-Value-Linie (mitlaufend)</b> wandert jeden Tag mit der orangen Linie mit – der Alarm kommt, sobald der Kurs die Linie erreicht, auch wenn das erst im nächsten Jahr passiert. Jeder Alarm meldet sich einmal.</p></details>
-        <details><summary>Warum kam kein Alarm?</summary><p>Alarme werden geprüft, <b>solange ValueLens geöffnet ist</b> (alle 15 Minuten). Ist der Rechner aus oder ValueLens geschlossen, wird beim nächsten Öffnen nachgeprüft. Außerdem muss Telegram eingerichtet sein (Reiter Alarme &amp; Telegram) – „Installation prüfen“ zeigt, ob der Bot antwortet.</p></details>
+        <details><summary>Warum kam kein Alarm?</summary><p>Alarme werden geprüft, <b>solange diese Seite geöffnet ist</b> (alle 15 Minuten). Ist der Rechner aus oder ValueLens geschlossen, wird beim nächsten Öffnen nachgeprüft. Außerdem muss Telegram eingerichtet sein (Reiter Alarme &amp; Telegram) – „Installation prüfen“ zeigt, ob der Bot antwortet.</p></details>
         <details><summary>Wie richte ich Telegram ein?</summary><p>In Telegram <b>@BotFather</b> öffnen → <code>/newbot</code> → Namen vergeben → Token kopieren. Dem neuen Bot einmal <code>/start</code> schreiben. In ValueLens: Alarme &amp; Telegram → Kanal „Kursalarme“ → Token einfügen → „Chat-ID finden“ → „Speichern“. Es kommt eine Testnachricht.</p></details>
         <details><summary>Wie trage ich meine Käufe ein?</summary><p>Reiter <b>Meine Käufe</b>: Symbol, Datum, Stück, Preis in der Handelswährung (US-Aktien in USD). Der Preis in € ist optional. Käufe erscheinen im Chart als pinke Punkte mit Datum, Preis und Durchschnittspreis.</p></details>
-        <details><summary>Wo liegen meine Daten – und wie sichere ich sie?</summary><p>Alles liegt im Ordner <code>data</code> im ValueLens-Ordner (Käufe, Watchlist, Alarme, Telegram, Einstellungen). Nichts davon geht ins Internet außer den Abrufen bei Yahoo, SEC und Telegram. Zum Sichern oder Umziehen einfach den Ordner <code>data</code> kopieren.</p></details>
-        <details><summary>Wie bekomme ich Updates?</summary><p>Automatisch: Beim Start prüft ValueLens, ob es eine neue Version gibt, und spielt sie ein. Deine Daten bleiben. Abschalten oder von Hand prüfen unter <b>Einstellungen</b>. Was neu ist, steht unten.</p></details>
-        <details><summary>„PHP wurde nicht gefunden“ / Seite lädt nicht</summary><p>PHP 8 einmalig installieren – Windows: <code>winget install PHP.PHP.8.4</code>, Mac: <code>brew install php</code> – und das Startfenster neu öffnen. Ist der Port belegt, mit anderem Port starten: Windows <code>set VALUELENS_PORT=8585</code> vor <code>start.bat</code>, Mac <code>VALUELENS_PORT=8585 ./start.command</code>.</p></details>
+        <details data-nur-lokal><summary>Wo liegen meine Daten – und wie sichere ich sie?</summary><p>Alles liegt im Ordner <code>data</code> im ValueLens-Ordner (Käufe, Watchlist, Alarme, Telegram, Einstellungen). Nichts davon geht ins Internet außer den Abrufen bei Yahoo, SEC und Telegram. Zum Sichern oder Umziehen einfach den Ordner <code>data</code> kopieren.</p></details>
+        <details data-nur-lokal><summary>Wie bekomme ich Updates?</summary><p>Automatisch: Beim Start prüft ValueLens, ob es eine neue Version gibt, und spielt sie ein. Deine Daten bleiben. Abschalten oder von Hand prüfen unter <b>Einstellungen</b>. Was neu ist, steht unten.</p></details>
+        <details data-nur-lokal><summary>„PHP wurde nicht gefunden“ / Seite lädt nicht</summary><p>PHP 8 einmalig installieren – Windows: <code>winget install PHP.PHP.8.4</code>, Mac: <code>brew install php</code> – und das Startfenster neu öffnen. Ist der Port belegt, mit anderem Port starten: Windows <code>set VALUELENS_PORT=8585</code> vor <code>start.bat</code>, Mac <code>VALUELENS_PORT=8585 ./start.command</code>.</p></details>
         <details><summary>Ist das eine Anlageberatung?</summary><p>Nein. ValueLens rechnet nach festen Regeln mit öffentlichen Daten (Yahoo, SEC). Daten können fehlen oder falsch sein – Entscheidungen triffst du selbst.</p></details>
       </div>
     </div>
-    <div class="panel">
+    <div class="panel" data-nur-lokal>
       <div class="table-head"><h2>Was ist neu?</h2></div>
       <div class="innen" id="neuListe"><span class="muted klein">wird geladen …</span></div>
     </div>
   </section>
 </main>
 <div class="modal-overlay" id="neuOverlay"><div class="modal" style="max-width:560px;"><h2 style="margin-top:0;font-size:17px;" id="neuTitel">Neu in ValueLens</h2><div id="neuInhalt"></div><div style="text-align:right;margin-top:12px;"><button class="btn primary" id="neuZu">Verstanden</button></div></div></div>
-<script>window.CSRF_TOKEN = <?= $csrf ?>;</script>
 <script src="client/app.js"></script>
 <script src="client/hilfsfunktionen.js"></script>
 <script src="client/chart-modul.js"></script>
 <script src="client/alarm-meldeweg.js"></script>
 <script src="client/telegram-einrichtung.js"></script>
-<script>valueLensStart();</script>
 </body>
 </html>

@@ -2,7 +2,8 @@
    Kursalarme (Pruefung alle 15 Minuten, solange die Seite offen ist), taeglicher Lauf, Einstellungen.
    Stellt ausserdem bereit, was chart-modul.js aus der umgebenden App erwartet (escapeHtml, toast, data, saveData ...). */
 
-const CSRF_TOKEN = window.CSRF_TOKEN || '';
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || window.CSRF_TOKEN || '';
+const VL_WEB = document.querySelector('meta[name="vl-modus"]')?.content === 'web';   // in Kamikaze: kein Update, kein Nachtlauf, keine Einstellungen
 const CAPOLIO_IS_ADMIN = true;   // lokal ist man selbst Admin (Telegram-Meldeweg)
 let data = {positions:[], transactions:[], watchlist:[], priceAlerts:[], alertNotify:{}};
 let _depotBasis = 0;
@@ -122,8 +123,13 @@ function vlAlarmeZeichnen(){
       <td><a href="#" data-ac-sym="${escapeHtml(a.symbol)}">${escapeHtml(a.symbol)}</a></td><td>${a.condition==='below'?'▼ unter':'▲ über'}</td><td>${vlNum(Number(a.targetPrice))}</td>
       <td class="klein">${escapeHtml(String(a.name||'').split(' · ').slice(-1)[0])}${a.dynamisch?' <span class="muted">(läuft mit)</span>':''}</td>
       <td>${a.fired ? '<span class="neg">ausgelöst</span>' : (a.active===false ? 'aus' : '<span class="pos">scharf</span>')}</td>
-      <td>${typeof alertNotifyButtonsHtml==='function' ? alertNotifyButtonsHtml(a.symbol) : ''}</td><td><a href="#" class="weg" data-al-weg="${escapeHtml(a.id)}" title="löschen">✕</a></td></tr>`).join('')
+      <td>${vlMeldewegKnoepfe(a.symbol)}</td><td><a href="#" class="weg" data-al-weg="${escapeHtml(a.id)}" title="löschen">✕</a></td></tr>`).join('')
     || '<tr><td colspan="7" class="muted">Noch keine Alarme – im Chart über 🔔 Alarm setzen.</td></tr>'}</tbody>`;
+}
+// Meldeweg-Knoepfe ohne onclick (CSP): Aufruf steht in data-Attributen, Klick faengt valueLensStart ab
+function vlMeldewegKnoepfe(sym){
+  if(typeof alertNotifyButtonsHtml!=='function') return '';
+  return alertNotifyButtonsHtml(sym).replace(/onclick="event\.stopPropagation\(\);toggleAlertNotify\('([^']*)','([^']*)'\)"/g, (m, s, a)=>`data-an-sym="${s}" data-an-art="${a}"`);
 }
 async function vlAlarmePruefen(still){
   const st = document.getElementById('alStatus');
@@ -209,11 +215,13 @@ function vlVersionGroesser(a, b){ const x = String(a).split('.').map(Number), y 
 
 // ---------- Start ----------
 async function valueLensStart(){
+  if(VL_WEB) document.body.classList.add('vl-web');
   document.addEventListener('click', e=>{
     const n = e.target.closest('.nav'); if(n){ vlSeite(n.dataset.seite); return; }
     const w = e.target.closest('[data-wl-weg]'); if(w){ e.preventDefault(); data.watchlist = (data.watchlist||[]).filter(x=>x.ticker!==w.dataset.wlWeg); saveData(); return; }
     const k = e.target.closest('[data-kf-weg]'); if(k){ e.preventDefault(); const i = Number(k.dataset.kfWeg); const t = data.transactions[i];
       confirmDialog(`${t.ticker} vom ${t.date} löschen?`).then(ok=>{ if(ok){ data.transactions.splice(i,1); saveData(); } }); return; }
+    const mw = e.target.closest('[data-an-sym]'); if(mw){ e.preventDefault(); e.stopPropagation(); toggleAlertNotify(mw.dataset.anSym, mw.dataset.anArt); vlAlarmeZeichnen(); return; }
     const a = e.target.closest('[data-al-weg]'); if(a){ e.preventDefault(); data.priceAlerts = (data.priceAlerts||[]).filter(x=>x.id!==a.dataset.alWeg); saveData(); return; }
     // Klicks auf [data-ac-sym] (Symbol oeffnen) behandelt das Chart-Modul selbst (Weiche auf <main id="page-aktienchart">)
   });
@@ -222,28 +230,30 @@ async function valueLensStart(){
   document.getElementById('kfNeu').addEventListener('click', vlKaufNeu);
   document.getElementById('kfDatum').value = new Date().toISOString().slice(0,10);
   document.getElementById('alPruefen').addEventListener('click', ()=>vlAlarmePruefen(false));
-  document.getElementById('nlStarten').addEventListener('click', ()=>vlNachtlauf(true));
-  document.getElementById('esSpeichern').addEventListener('click', vlEinstellungenSpeichern);
-  document.getElementById('upHolen').addEventListener('click', vlUpdateHolen);
-  document.getElementById('prStarten').addEventListener('click', vlPruefen);
-  document.getElementById('neuZu').addEventListener('click', ()=>document.getElementById('neuOverlay').classList.remove('show'));
+  document.getElementById('nlStarten')?.addEventListener('click', ()=>vlNachtlauf(true));
+  document.getElementById('esSpeichern')?.addEventListener('click', vlEinstellungenSpeichern);
+  document.getElementById('upHolen')?.addEventListener('click', vlUpdateHolen);
+  document.getElementById('prStarten')?.addEventListener('click', vlPruefen);
+  document.getElementById('neuZu')?.addEventListener('click', ()=>document.getElementById('neuOverlay').classList.remove('show'));
   // Telegram-Oberflaeche
   try{ const h = await (await fetch('client/telegram-einrichtung.html')).text(); document.getElementById('tgBox').innerHTML = h; telegramEinrichtungStarten(); } catch(e){}
   await vlDepotLaden();
   let s = 'aktie'; try{ s = localStorage.getItem('valuelens_seite') || 'aktie'; } catch(e){}
   if(location.hash.startsWith('#chart=')) s = 'aktie';
   vlSeite(document.getElementById('page-'+s) ? s : 'aktie');
-  vlEinstellungenLaden();
-  vlNeuInVersion();
+  if(!VL_WEB){ vlEinstellungenLaden(); vlNeuInVersion(); }
   // Kursalarme alle 15 Minuten, solange die Seite offen ist; beim Start, wenn die letzte Pruefung laenger her ist
   let letzte = 0; try{ letzte = Number(localStorage.getItem('valuelens_alarmzeit')||0); } catch(e){}
   if(Date.now() - letzte > 15*60*1000) setTimeout(()=>vlAlarmePruefen(true), 4000);
   setInterval(()=>vlAlarmePruefen(true), 15*60*1000);
-  setTimeout(()=>vlNachtlauf(false), 20000);   // einmal am Tag
+  if(!VL_WEB) setTimeout(()=>vlNachtlauf(false), 20000);   // einmal am Tag (lokal; im Web laeuft er auf dem Server)
   // Update-Hinweis: hoechstens einmal am Tag als Meldung, Anzeige unter Einstellungen immer
   let upTag = ''; try{ upTag = localStorage.getItem('valuelens_updatetag') || ''; } catch(e){}
   const heute = new Date().toISOString().slice(0,10);
-  setTimeout(()=>{ vlUpdatePruefen(vlAutoUpdate() ? 'auto' : upTag!==heute); try{ localStorage.setItem('valuelens_updatetag', heute); } catch(e){} }, 3000);
+  if(!VL_WEB) setTimeout(()=>{ vlUpdatePruefen(vlAutoUpdate() ? 'auto' : upTag!==heute); try{ localStorage.setItem('valuelens_updatetag', heute); } catch(e){} }, 3000);
   const au = document.getElementById('upAuto'); if(au){ au.checked = vlAutoUpdate(); au.addEventListener('change', ()=>{ try{ localStorage.setItem('valuelens_autoupdate', au.checked ? '1' : '0'); } catch(e){} }); }
   document.getElementById('upPruefen')?.addEventListener('click', ()=>vlUpdatePruefen(true));
 }
+
+// Start ohne Inline-Skript (CSP): nach dem Laden aller Skripte
+document.addEventListener('DOMContentLoaded', valueLensStart);

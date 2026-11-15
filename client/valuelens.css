@@ -39,3 +39,6 @@ code{ background:var(--surface-hover); padding:1px 5px; border-radius:4px; font-
 .ampel{ display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:6px; vertical-align:middle; }
 .ampel.gruen{ background:#16a34a; } .ampel.gelb{ background:#eab308; } .ampel.rot{ background:#dc2626; }
 @media (max-width:700px){ main{ padding:10px; } .kopf{ padding:8px 10px; } }
+
+/* Web-Modus (in Kamikaze): lokale Teile ausblenden */
+[data-nur-web]{ display:none; } body.vl-web [data-nur-web]{ display:inline-block; } body.vl-web [data-nur-lokal]{ display:none !important; }

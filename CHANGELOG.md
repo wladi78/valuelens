@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.4 – 15.11.2026
+- ValueLens gibt es jetzt auch als Webseite im Kamikaze-Bereich (mit Anmeldung, eigene Daten je Mitglied). Die lokale Fassung bleibt gleich.
+- Kursalarm-Knöpfe (Telegram/Mail je Aktie) technisch umgebaut; Start ohne eingebettetes Skript.
+
 ## 1.3 – 15.11.2026
 - **Bewertung** lädt beim zweiten Öffnen sofort: das Ergebnis wird 3 Stunden zwischengespeichert (vorher bei jeder Aktie 30–40 Sekunden „Lade Gewinne je Aktie …“).
 
