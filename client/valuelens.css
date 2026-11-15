@@ -52,3 +52,9 @@ code{ background:var(--surface-hover); padding:1px 5px; border-radius:4px; font-
 body.vl-web .kopf{ justify-content:flex-start; padding:8px 16px; }
 body.vl-web .kopf nav{ display:flex; gap:6px; flex-wrap:wrap; }
 body.vl-web [data-ki-neu-tab]{ display:none !important; }   /* im Web kein neuer Tab - alles bleibt in der Seite */
+
+/* Chart-Reiter groesser und beim Scrollen oben stehend (Nutzer 15.11.2026, Webfassung in Kamikaze) */
+body.vl-web #kiChartOverlay .modal > div:has(> [data-ki-tab]){ position:sticky; top:0; z-index:5; background:var(--card); padding:8px 0; margin-top:-8px; border-bottom:1px solid var(--border); }
+body.vl-web #kiChartOverlay [data-ki-tab], body.vl-web #kiChartOverlay [data-ki-iv]{ font-size:14px; padding:8px 16px; border-radius:9px; font-weight:600; }
+body.vl-web #kiChartOverlay [data-ki-alarm-menue], body.vl-web #kiChartOverlay [data-ki-chart-zu]{ font-size:14px; padding:8px 14px !important; border-radius:9px; }
+body.vl-web #kiChartTitel{ font-size:18px !important; }
