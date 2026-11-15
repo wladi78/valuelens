@@ -49,6 +49,19 @@ if ($symbol === '' || !function_exists('curl_init')) {
     echo json_encode(['error' => 'invalid_symbol']);
     exit;
 }
+// Ergebnis 3 Stunden zwischenspeichern (alle Nutzer teilen ihn): die Berechnung ruft SEC und Yahoo rund 60-mal auf und
+// dauerte bei KO jedes Mal 40 s (Messung 15.11.2026). Fehlerantworten werden nicht gespeichert. ?frisch=1 umgeht den Speicher.
+$fcDir = __DIR__ . '/data/cache/fundamentals';
+$fcDatei = $fcDir . '/' . preg_replace('/[^A-Z0-9.^=_-]/', '_', strtoupper($symbol)) . '.json';
+if (empty($_GET['frisch']) && is_file($fcDatei) && time() - filemtime($fcDatei) < 3 * 3600) { readfile($fcDatei); exit; }
+ob_start(function ($aus) use ($fcDir, $fcDatei) {
+    $j = json_decode($aus, true);
+    if (is_array($j) && empty($j['error']) && !empty($j['symbol'])) {
+        if (!is_dir($fcDir)) @mkdir($fcDir, 0700, true);
+        if (@file_put_contents($fcDatei . '.tmp', $aus) !== false) @rename($fcDatei . '.tmp', $fcDatei);
+    }
+    return $aus;
+});
 
 $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 

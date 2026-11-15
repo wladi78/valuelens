@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.3 – 15.11.2026
+- **Bewertung** lädt beim zweiten Öffnen sofort: das Ergebnis wird 3 Stunden zwischengespeichert (vorher bei jeder Aktie 30–40 Sekunden „Lade Gewinne je Aktie …“).
+
 ## 1.2 – 15.11.2026
 - Neuer Reiter **Hilfe**: häufige Fragen (Linien im Chart, Renditerechner, Alarme, Telegram, Daten sichern, Updates).
 - **Installation prüfen** mit Ampel: PHP, Erweiterungen, Zertifikate, Yahoo, SEC, Telegram, Updates – auch ohne Browser per `pruefen.bat` (Windows) bzw. `./start.command pruefen`.
