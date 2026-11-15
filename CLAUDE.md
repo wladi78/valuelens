@@ -22,6 +22,7 @@ Antworten an den Nutzer auf Deutsch.
 | `quote.php`, `fundamentals.php`, `bewertung-*.php`, `fitness*.php`, `sector.php` | Datenabrufe (Yahoo, SEC) mit Zwischenspeicher in `data/cache/` |
 | `update.php` | Update von GitHub (Datei VERSION vergleichen, ZIP laden, Programmdateien ersetzen, `data/` nie) |
 | `router.php` | sperrt `data/` und Hilfsdateien im eingebauten Server |
+| `pruefen.php`, `version.php` | Installation prüfen (Ampel), Änderungsliste nach einem Update |
 
 ## Wichtig
 - Bei jeder neuen Fassung `VERSION` erhöhen und `CHANGELOG.md` ergänzen – daran erkennen alle Installationen das Update.
@@ -29,5 +30,10 @@ Antworten an den Nutzer auf Deutsch.
   besser in Capolio machen, sonst gehen sie beim nächsten Update verloren. Eigene Dateien von ValueLens:
   index.php, client/app.js, client/valuelens.css, depot.php, alarm-pruefen.php, nachtlauf.php, einstellungen.php,
   session-init.php, router.php, start.*, README.md, CLAUDE.md.
+- **Web-Modus:** Dieselbe Fassung läuft auch eingebettet in eine Webseite mit Anmeldung (`<meta name="vl-modus" content="web">`,
+  gesetzt über die Konstante `VL_WEB`; dort ohne Update, Nachtlauf, Einstellungen). Darum: **kein JavaScript im HTML**
+  (keine Inline-Skripte, kein `onclick=` – strenge Content-Security-Policy), keine fremden Skriptquellen (Bibliotheken in
+  `client/lib/`), Eingabefelder als `type="search"` (sonst füllt der Passwort-Manager die Mailadresse ein).
+- SEC-Zwischenspeicher gelten bis zur nächsten Quartalsmeldung der Firma (`sec_cache_frisch()` in `sec-lib.php`).
 - Keine Schlüssel, Tokens oder persönlichen Daten ins Repository; Telegram-Token liegen nur in `data/telegram_*.json`.
 - Keine Anlageberatung – Regelausgaben und Rechenhilfen.
