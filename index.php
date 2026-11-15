@@ -16,8 +16,10 @@ $csrf = json_encode($_SESSION['csrfToken']);
 <meta name="vl-modus" content="<?= defined('VL_WEB') ? 'web' : 'lokal' ?>">
 </head>
 <body>
+<div class="vl-oben" id="vlOben">
+<?php if (function_exists('vl_kopfzeile')) vl_kopfzeile(); /* Web: Kamikaze-Leiste */ ?>
 <header class="kopf">
-  <div class="marke">🔍 <b>ValueLens</b> <span class="muted">Aktien bewerten<span data-nur-lokal> · lokal</span></span> <a data-nur-web href="/" class="btn ghost" style="padding:3px 10px;margin-left:8px;">← Kamikaze</a></div>
+  <div class="marke" data-nur-lokal>🔍 <b>ValueLens</b> <span class="muted">Aktien bewerten<span data-nur-lokal> · lokal</span></span></div>
   <nav>
     <button class="nav active" data-seite="aktie">Aktie</button>
     <button class="nav" data-seite="liste">Watchlist &amp; Filter</button>
@@ -27,6 +29,7 @@ $csrf = json_encode($_SESSION['csrfToken']);
     <button class="nav" data-seite="hilfe">Hilfe</button>
   </nav>
 </header>
+</div>
 <main id="page-aktienchart">   <!-- id fuer die Klick-Weiche des Chart-Moduls (Liste sortieren, Zeile oeffnen) -->
   <!-- Aktie bewerten -->
   <section class="page active" id="page-aktie">
@@ -39,7 +42,7 @@ $csrf = json_encode($_SESSION['csrfToken']);
           <input id="acSymbol" list="acSymbole" placeholder="z. B. KO, MSFT, O, SAP.DE" style="width:260px;">
           <datalist id="acSymbole"></datalist>
           <button class="btn primary" id="acOeffnen">📈 Bewerten</button>
-          <button class="btn ghost" id="acNeuerTab">↗ In eigenem Tab</button>
+          <button class="btn ghost" id="acNeuerTab" data-nur-lokal>↗ In eigenem Tab</button>
           <select id="acStart"><option value="bewertung">Start: Bewertung</option><option value="fitness">Start: Fitness</option><option value="zonen">Start: Zonen</option><option value="div">Start: Dividende</option><option value="analyse">Start: Analyse</option></select>
         </div>
         <div id="acZuletzt" class="zeile" style="margin-top:12px;"></div>

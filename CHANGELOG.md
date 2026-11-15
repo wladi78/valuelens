@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.6 – 15.11.2026
+- Kopf und Reiter bleiben beim Blättern oben stehen; Webfassung in Kamikaze mit dessen Menüleiste (alles in einer Seite).
+
 ## 1.5 – 15.11.2026
 - Der Chart öffnet sich als **Seite** (volle Breite, Kennzahlen rechts) statt als Fenster; die Reiter oben bleiben sichtbar und schließen den Chart.
 

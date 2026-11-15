@@ -64,6 +64,9 @@ function vlPositionen(){
 
 // ---------- Seiten ----------
 function vlSeite(name){
+  // Web: Menuepunkt der Kamikaze-Leiste (Watchlist = Reiter Watchlist & Filter, sonst Aktien) und Adresse mitfuehren
+  document.querySelectorAll('[data-kk-key]').forEach(a=>a.classList.toggle('active', a.dataset.kkKey===(name==='liste' ? 'watchlist' : 'aktien')));
+  if(VL_WEB && !location.hash.startsWith('#chart=')) history.replaceState(null, '', location.pathname + '?seite=' + encodeURIComponent(name));
   document.querySelectorAll('.nav').forEach(b=>b.classList.toggle('active', b.dataset.seite===name));
   document.querySelectorAll('.page').forEach(s=>s.classList.toggle('active', s.id==='page-'+name));
   try{ localStorage.setItem('valuelens_seite', name); } catch(e){}
@@ -225,7 +228,7 @@ function vlChartAlsSeite(){
     return o;
   };
   kiChartModal._vl = true;
-  const kopf = document.querySelector('.kopf');
+  const kopf = document.getElementById('vlOben') || document.querySelector('.kopf');
   const hoehe = ()=>document.documentElement.style.setProperty('--vl-kopf', (kopf ? kopf.offsetHeight : 0) + 'px');
   hoehe(); window.addEventListener('resize', hoehe);
 }
@@ -235,6 +238,8 @@ async function valueLensStart(){
   if(VL_WEB) document.body.classList.add('vl-web');
   vlChartAlsSeite();
   document.addEventListener('click', e=>{
+    // Web: Watchlist/Aktien in der Kamikaze-Leiste ohne Neuladen umschalten
+    const kk = e.target.closest('[data-kk-seite]'); if(kk && !e.ctrlKey && !e.metaKey){ e.preventDefault(); if(typeof kiChartSchliessen==='function' && document.getElementById('kiChartOverlay')?.classList.contains('show')){ kiChartSchliessen(); history.replaceState(null, '', location.pathname); } vlSeite(kk.dataset.kkSeite); return; }
     const n = e.target.closest('.nav'); if(n){ if(typeof kiChartSchliessen==='function' && document.getElementById('kiChartOverlay')?.classList.contains('show')){ kiChartSchliessen(); if(location.hash.startsWith('#chart=')) history.replaceState(null, '', location.pathname); } vlSeite(n.dataset.seite); return; }
     const w = e.target.closest('[data-wl-weg]'); if(w){ e.preventDefault(); data.watchlist = (data.watchlist||[]).filter(x=>x.ticker!==w.dataset.wlWeg); saveData(); return; }
     const k = e.target.closest('[data-kf-weg]'); if(k){ e.preventDefault(); const i = Number(k.dataset.kfWeg); const t = data.transactions[i];
@@ -257,6 +262,7 @@ async function valueLensStart(){
   try{ const h = await (await fetch('client/telegram-einrichtung.html')).text(); document.getElementById('tgBox').innerHTML = h; telegramEinrichtungStarten(); } catch(e){}
   await vlDepotLaden();
   let s = 'aktie'; try{ s = localStorage.getItem('valuelens_seite') || 'aktie'; } catch(e){}
+  const sp = new URLSearchParams(location.search).get('seite'); if(sp) s = sp;
   if(location.hash.startsWith('#chart=')) s = 'aktie';
   vlSeite(document.getElementById('page-'+s) ? s : 'aktie');
   if(!VL_WEB){ vlEinstellungenLaden(); vlNeuInVersion(); }

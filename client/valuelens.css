@@ -46,3 +46,9 @@ code{ background:var(--surface-hover); padding:1px 5px; border-radius:4px; font-
 /* Chart als Seite unter der Kopfleiste (vlChartAlsSeite in app.js) */
 #kiChartOverlay.ki-voll{ top:var(--vl-kopf,0px) !important; z-index:19 !important; }
 #kiChartOverlay.ki-voll .modal{ height:auto !important; min-height:calc(100vh - var(--vl-kopf,0px)) !important; max-height:none !important; }
+
+/* Kopf als ein klebender Block (lokal: ValueLens-Kopf; Web: Kamikaze-Leiste + Reiter als Knopfzeile) */
+.vl-oben{ position:sticky; top:0; z-index:20; } .vl-oben .kopf{ position:static; }
+body.vl-web .kopf{ justify-content:flex-start; padding:8px 16px; }
+body.vl-web .kopf nav{ display:flex; gap:6px; flex-wrap:wrap; }
+body.vl-web [data-ki-neu-tab]{ display:none !important; }   /* im Web kein neuer Tab - alles bleibt in der Seite */
