@@ -58,3 +58,8 @@ body.vl-web #kiChartOverlay .modal > div:has(> [data-ki-tab]){ position:sticky; 
 body.vl-web #kiChartOverlay [data-ki-tab], body.vl-web #kiChartOverlay [data-ki-iv]{ font-size:14px; padding:8px 16px; border-radius:9px; font-weight:600; }
 body.vl-web #kiChartOverlay [data-ki-alarm-menue], body.vl-web #kiChartOverlay [data-ki-chart-zu]{ font-size:14px; padding:8px 14px !important; border-radius:9px; }
 body.vl-web #kiChartTitel{ font-size:18px !important; }
+
+/* Web: Reiterzeile und Inhalt buendig mit der Kamikaze-Leiste (max. 1400 px, mittig) */
+body.vl-web main{ max-width:1400px; }
+body.vl-web .kopf{ padding-left:max(16px, calc((100% - 1400px) / 2 + 16px)); padding-right:max(16px, calc((100% - 1400px) / 2 + 16px)); }
+body.vl-web .kopf .nav{ font-size:14px; padding:7px 14px; }

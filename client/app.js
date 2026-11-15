@@ -70,6 +70,7 @@ function vlSeite(name){
   document.querySelectorAll('.nav').forEach(b=>b.classList.toggle('active', b.dataset.seite===name));
   document.querySelectorAll('.page').forEach(s=>s.classList.toggle('active', s.id==='page-'+name));
   try{ localStorage.setItem('valuelens_seite', name); } catch(e){}
+  if(name==='liste' && !window._vlListeAuto && (data.watchlist||[]).length){ window._vlListeAuto = true; setTimeout(()=>document.getElementById('acListeLaden')?.click(), 400); }
   vlZeichnen();
 }
 function vlZeichnen(){
@@ -116,6 +117,71 @@ function vlKaufNeu(){
   data.transactions = data.transactions||[]; data.transactions.push(t);
   ['kfSymbol','kfStueck','kfPreis','kfEur'].forEach(id=>{ g(id).value = ''; });
   saveData(); toast(`${t.type==='verkauf'?'Verkauf':'Kauf'} ${t.ticker} eingetragen.`);
+}
+
+// ---------- Meine Kaeufe als CSV (Nutzer 15.11.2026: "meine Kaeufe auch per CSV als Liste") ----------
+// Zahl aus "1.234,56", "1,234.56", "12,5", "12.5 USD": das letzte Trennzeichen ist das Dezimalzeichen
+function vlCsvZahl(v){
+  let s = String(v ?? '').replace(/[^\d.,-]/g, ''); if(!s) return null;
+  const k = s.lastIndexOf(','), p = s.lastIndexOf('.');
+  if(k>-1 && p>-1) s = k>p ? s.replace(/\./g,'').replace(',', '.') : s.replace(/,/g,'');
+  else if(k>-1) s = s.replace(/\./g,'').replace(',', '.');
+  const x = Number(s); return isFinite(x) ? x : null;
+}
+function vlCsvDatum(v){
+  const s = String(v||'').trim(); let m;
+  if((m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s))) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  if((m = /^(\d{1,2})[./](\d{1,2})[./](\d{2,4})/.exec(s))){ const j = m[3].length===2 ? '20'+m[3] : m[3]; return `${j}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
+  return null;
+}
+function vlCsvZeilen(text){
+  const z = String(text).replace(/^﻿/, '').split(/\r?\n/).filter(l=>l.trim());
+  if(!z.length) return [];
+  const trenn = [';', '\t', ','].map(t=>[t, z[0].split(t).length]).sort((a,b)=>b[1]-a[1])[0][0];
+  const teile = l=>{ const r = []; let cur = '', q = false;
+    for(const ch of l){ if(ch==='"'){ q = !q; continue; } if(ch===trenn && !q){ r.push(cur.trim()); cur = ''; } else cur += ch; }
+    r.push(cur.trim()); return r; };
+  return z.map(teile);
+}
+async function vlCsvEinlesen(datei){
+  const zeilen = vlCsvZeilen(await datei.text());
+  if(zeilen.length<2){ toast('Die Datei hat keine Datenzeilen.'); return; }
+  const kopf = zeilen[0].map(h=>h.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z€]/g,''));
+  const spalte = (...namen)=>kopf.findIndex(h=>namen.some(n=>h===n || h.startsWith(n)));
+  const iEur = spalte('preiseur', 'preis€', 'eur', 'priceeur');
+  const S = {datum:spalte('datum','date','handelstag','tag'), symbol:spalte('symbol','ticker','wertpapier'), art:spalte('art','typ','type','richtung'),
+    stueck:spalte('stuck','stueck','anzahl','shares','menge','quantity','stk'), preis:kopf.findIndex((h,i)=>i!==iEur && ['preis','price','kurs','kaufkurs'].some(n=>h===n || (h.startsWith(n) && !h.includes('eur') && !h.includes('€')))),
+    waehrung:spalte('wahrung','waehrung','currency','whg'), eur:iEur};
+  if(S.datum<0 || S.symbol<0 || S.stueck<0 || S.preis<0){ toast('Kopfzeile braucht mindestens Datum, Symbol, Stück und Preis.', 6000); return; }
+  const schon = new Set((data.transactions||[]).map(t=>[t.date, t.ticker, t.type||'kauf', Number(t.shares), Number(t.priceOriginal)].join('|')));
+  const neu = [], fehler = [];
+  zeilen.slice(1).forEach((r, n)=>{
+    const t = {date:vlCsvDatum(r[S.datum]), ticker:String(r[S.symbol]||'').trim().toUpperCase(),
+      type:/verk|sell|^s$/i.test(S.art>=0 ? r[S.art]||'' : '') ? 'verkauf' : 'kauf',
+      shares:Math.abs(vlCsvZahl(r[S.stueck]) ?? 0), priceOriginal:vlCsvZahl(r[S.preis]),
+      currency:(S.waehrung>=0 && /^[A-Za-z]{3}$/.test(r[S.waehrung]||'')) ? r[S.waehrung].toUpperCase() : 'USD',
+      price:S.eur>=0 ? vlCsvZahl(r[S.eur]) : null};
+    if(!t.date || !/^[A-Z0-9.\-]{1,20}$/.test(t.ticker) || !(t.shares>0) || !(t.priceOriginal>0)){ fehler.push(n+2); return; }
+    if(t.currency==='EUR' && t.price==null) t.price = t.priceOriginal;
+    t.amount = t.shares*(t.price ?? t.priceOriginal);
+    const k = [t.date, t.ticker, t.type, t.shares, t.priceOriginal].join('|'); if(schon.has(k)) return; schon.add(k);
+    neu.push(t);
+  });
+  const dopp = zeilen.length-1-neu.length-fehler.length;
+  if(!neu.length){ toast(`Nichts Neues: ${dopp} schon vorhanden${fehler.length ? `, ${fehler.length} Zeilen unlesbar (Zeile ${fehler.slice(0,8).join(', ')})` : ''}.`, 7000); return; }
+  const ok = await confirmDialog(`${neu.length} Buchungen übernehmen?` + (dopp ? ` (${dopp} schon vorhanden, übersprungen)` : '') + (fehler.length ? ` – ${fehler.length} Zeilen nicht lesbar: ${fehler.slice(0,8).join(', ')}` : ''));
+  if(!ok) return;
+  data.transactions = (data.transactions||[]).concat(neu);
+  saveData(); toast(`${neu.length} Buchungen eingelesen.`);
+}
+function vlCsvHerunterladen(){
+  const z = v=>{ const s = String(v ?? ''); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const n = v=>v==null || v==='' || !isFinite(Number(v)) ? '' : String(Number(v)).replace('.', ',');
+  const tx = (data.transactions||[]).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const text = '﻿' + ['Datum;Symbol;Art;Stück;Preis;Währung;Preis EUR', ...tx.map(t=>[t.date, t.ticker, t.type==='verkauf'?'Verkauf':'Kauf', n(t.shares), n(t.priceOriginal), t.currency||'', n(t.price)].map(z).join(';'))].join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type:'text/csv;charset=utf-8'}));
+  a.download = 'meine-kaeufe-' + new Date().toISOString().slice(0,10) + '.csv'; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 
 // ---------- Kursalarme ----------
@@ -251,6 +317,9 @@ async function valueLensStart(){
   document.getElementById('wlNeu').addEventListener('click', vlWatchlistNeu);
   document.getElementById('wlSymbol').addEventListener('keydown', e=>{ if(e.key==='Enter') vlWatchlistNeu(); });
   document.getElementById('kfNeu').addEventListener('click', vlKaufNeu);
+  document.getElementById('kfCsvImport')?.addEventListener('click', ()=>document.getElementById('kfCsvDatei').click());
+  document.getElementById('kfCsvDatei')?.addEventListener('change', e=>{ const f = e.target.files && e.target.files[0]; if(f) vlCsvEinlesen(f).catch(x=>toast('CSV nicht lesbar: ' + x.message)); e.target.value = ''; });
+  document.getElementById('kfCsvExport')?.addEventListener('click', vlCsvHerunterladen);
   document.getElementById('kfDatum').value = new Date().toISOString().slice(0,10);
   document.getElementById('alPruefen').addEventListener('click', ()=>vlAlarmePruefen(false));
   document.getElementById('nlStarten')?.addEventListener('click', ()=>vlNachtlauf(true));

@@ -96,6 +96,13 @@ $csrf = json_encode($_SESSION['csrfToken']);
           <input id="kfEur" placeholder="Preis in € (optional)" inputmode="decimal" style="width:150px;">
           <button class="btn primary" id="kfNeu">Eintragen</button>
         </div>
+        <div class="zeile" style="margin-top:8px;">
+          <input type="file" id="kfCsvDatei" accept=".csv,.txt,text/csv" hidden>
+          <button class="btn" id="kfCsvImport">📥 CSV einlesen</button>
+          <button class="btn ghost" id="kfCsvExport">📤 Als CSV herunterladen</button>
+          <span class="muted klein">Spalten (Kopfzeile, Reihenfolge egal): <code>Datum;Symbol;Art;Stück;Preis;Währung;Preis EUR</code> – Art und Preis EUR optional,
+            Datum als 15.03.2024 oder 2024-03-15, Komma oder Punkt als Dezimalzeichen. Doppelte Zeilen werden übersprungen.</span>
+        </div>
         <div class="table-scroll" style="margin-top:12px;"><table class="data-table" id="kfTab"></table></div>
       </div>
     </div>

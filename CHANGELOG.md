@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.7 – 15.11.2026
+- **Meine Käufe als CSV**: einlesen (Datum;Symbol;Art;Stück;Preis;Währung;Preis EUR – doppelte Zeilen werden übersprungen) und als CSV herunterladen.
+- Die Bewertungsliste der Watchlist berechnet sich beim Öffnen von selbst.
+
 ## 1.6 – 15.11.2026
 - Kopf und Reiter bleiben beim Blättern oben stehen; Webfassung in Kamikaze mit dessen Menüleiste (alles in einer Seite).
 
