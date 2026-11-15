@@ -42,3 +42,7 @@ code{ background:var(--surface-hover); padding:1px 5px; border-radius:4px; font-
 
 /* Web-Modus (in Kamikaze): lokale Teile ausblenden */
 [data-nur-web]{ display:none; } body.vl-web [data-nur-web]{ display:inline-block; } body.vl-web [data-nur-lokal]{ display:none !important; }
+
+/* Chart als Seite unter der Kopfleiste (vlChartAlsSeite in app.js) */
+#kiChartOverlay.ki-voll{ top:var(--vl-kopf,0px) !important; z-index:19 !important; }
+#kiChartOverlay.ki-voll .modal{ height:auto !important; min-height:calc(100vh - var(--vl-kopf,0px)) !important; max-height:none !important; }

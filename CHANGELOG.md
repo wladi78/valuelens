@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.5 – 15.11.2026
+- Der Chart öffnet sich als **Seite** (volle Breite, Kennzahlen rechts) statt als Fenster; die Reiter oben bleiben sichtbar und schließen den Chart.
+
 ## 1.4 – 15.11.2026
 - ValueLens gibt es jetzt auch als Webseite im Kamikaze-Bereich (mit Anmeldung, eigene Daten je Mitglied). Die lokale Fassung bleibt gleich.
 - Kursalarm-Knöpfe (Telegram/Mail je Aktie) technisch umgebaut; Start ohne eingebettetes Skript.

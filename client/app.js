@@ -213,11 +213,29 @@ async function vlNeuInVersion(){
 function vlVersionGroesser(a, b){ const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
   for(let i=0;i<Math.max(x.length,y.length);i++){ const d = (x[i]||0)-(y[i]||0); if(d) return d>0; } return false; }
 
+// Chart als Seite statt Popup (Nutzer 15.11.2026: "Bewertung in die Webseite integrieren, nicht als Popup - so wie
+// Capolio"): immer der Seitenmodus von "Eigener Tab" (volle Breite, Kennzahlen rechts); die Kopfleiste bleibt sichtbar,
+// das Chartfenster beginnt unter ihr. Klick auf einen Reiter oben schliesst den Chart.
+function vlChartAlsSeite(){
+  if(typeof kiChartModal!=='function' || kiChartModal._vl) return;
+  const orig = kiChartModal; let innen = false;
+  kiChartModal = function(){
+    const o = orig.apply(this, arguments);
+    if(!innen && !o.classList.contains('ki-voll')){ innen = true; try{ kiChartVollbild(); } finally{ innen = false; } }
+    return o;
+  };
+  kiChartModal._vl = true;
+  const kopf = document.querySelector('.kopf');
+  const hoehe = ()=>document.documentElement.style.setProperty('--vl-kopf', (kopf ? kopf.offsetHeight : 0) + 'px');
+  hoehe(); window.addEventListener('resize', hoehe);
+}
+
 // ---------- Start ----------
 async function valueLensStart(){
   if(VL_WEB) document.body.classList.add('vl-web');
+  vlChartAlsSeite();
   document.addEventListener('click', e=>{
-    const n = e.target.closest('.nav'); if(n){ vlSeite(n.dataset.seite); return; }
+    const n = e.target.closest('.nav'); if(n){ if(typeof kiChartSchliessen==='function' && document.getElementById('kiChartOverlay')?.classList.contains('show')){ kiChartSchliessen(); if(location.hash.startsWith('#chart=')) history.replaceState(null, '', location.pathname); } vlSeite(n.dataset.seite); return; }
     const w = e.target.closest('[data-wl-weg]'); if(w){ e.preventDefault(); data.watchlist = (data.watchlist||[]).filter(x=>x.ticker!==w.dataset.wlWeg); saveData(); return; }
     const k = e.target.closest('[data-kf-weg]'); if(k){ e.preventDefault(); const i = Number(k.dataset.kfWeg); const t = data.transactions[i];
       confirmDialog(`${t.ticker} vom ${t.date} löschen?`).then(ok=>{ if(ok){ data.transactions.splice(i,1); saveData(); } }); return; }
