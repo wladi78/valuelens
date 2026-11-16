@@ -14,6 +14,7 @@
 //  - Telegram: eine gesammelte Nachricht je Lauf statt einer je Alarm.
 require_once __DIR__ . '/yahoo-quote-lib.php';
 require_once __DIR__ . '/telegram-lib.php';
+require_once __DIR__ . '/json_store.php';   // CAPOLIO_VERWALTER (16.11.2026)
 const ALERT_REARM_PCT = 2.0;
 
 $isCli = (php_sapi_name() === 'cli') || defined('VALUELENS_LOKAL');   // ValueLens: Aufruf aus alarm-pruefen.php
@@ -86,10 +87,11 @@ $mailCount = 0;
 foreach ($depots as $key => $entry) {
     $depot = $entry['depot'];
     $changed = false;
-    // Telegram nur fuer Depots, auf die ein Admin Zugriff hat (der Bot gehoert dem Admin).
+    // Telegram nur fuer Depots des Verwalters (der Bot gehoert ihm). Seit 16.11.2026 Verwalter statt jeder Admin -
+    // sonst landeten Alarme aus dem Vorfuehrkonto "demo" in seinem Telegram.
     $adminDepot = false;
-    foreach ($users as $u) {
-        if (!empty($u['isAdmin']) && in_array($key, $u['allowedDepots'] ?? [], true)) { $adminDepot = true; break; }
+    foreach ($users as $uname => $u) {
+        if (in_array((string) $uname, CAPOLIO_VERWALTER, true) && in_array($key, $u['allowedDepots'] ?? [], true)) { $adminDepot = true; break; }
     }
 
     // Empfaenger fuer dieses Depot ermitteln: entspricht der Depot-Key einem
@@ -130,7 +132,9 @@ foreach ($depots as $key => $entry) {
         if (!empty($alert['fired'])) continue;   // schon gemeldet, Kurs noch nicht zurueckgelaufen
 
         $notify = $depot['alertNotify'][$alert['symbol']] ?? [];
-        $perMail = !empty($notify['mail']);                          // Standard: aus
+        // Familienkonten haben keinen Telegram-Bot: ihr Telegram-Wunsch (Standard) wird zur Mail an die eigene Adresse.
+        // Vorher kam bei ihnen gar nichts an (Mail Standard aus, Telegram nur fuer Verwalter-Depots) - 16.11.2026.
+        $perMail = !empty($notify['mail']) || (!$adminDepot && (!array_key_exists('telegram', $notify) || !empty($notify['telegram'])));
         $perTelegram = !array_key_exists('telegram', $notify) || !empty($notify['telegram']);   // Standard: an
         $dir = $below ? 'unter' : 'ueber';
         if ($perMail) {

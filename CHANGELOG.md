@@ -1,5 +1,10 @@
 # Änderungen
 
+## 1.11 – 16.11.2026
+- Telegram: Kanäle ohne eigenen Bot zeigen „↪ über …-Bot“ statt „nicht eingerichtet“; die Testnachricht nimmt denselben Weg wie die echten Meldungen.
+- Kursalarme: Ist für ein Konto kein Telegram möglich, kommt der Alarm per E-Mail statt gar nicht.
+- Gleicher Stand wie die Webfassung (Bewertung, Fitness, Chart unverändert).
+
 ## 1.10 – 15.11.2026
 - **Hinweis:** ValueLens gibt es jetzt als Webseite im Kamikaze-Bereich (Menü „📈 Aktien“). Diese lokale Fassung bekommt ab 22.11.2026 keine Updates mehr. Käufe per CSV mitnehmen: Meine Käufe → Als CSV herunterladen, auf der Webseite → CSV einlesen.
 

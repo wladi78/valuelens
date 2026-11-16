@@ -23,7 +23,7 @@ function telegramEinrichtungStarten(){
     if(!el) return;
     const zeilen = await Promise.all(Object.entries(TG_CHANNELS).map(async ([ch, label]) => {
       const d = await tgCall('get', null, ch);
-      return `<b>${escapeHtml(label)}:</b> ` + (!d ? '–' : (d.configured ? `✅ verbunden (Chat ${escapeHtml(String(d.chatId))})` : '✗ nicht eingerichtet'));
+      return `<b>${escapeHtml(label)}:</b> ` + (!d ? '–' : (d.configured ? `✅ verbunden (Chat ${escapeHtml(String(d.chatId))})` : d.ersatz ? `↪ über ${escapeHtml(d.ersatz.label.replace(/ \(.*$/,''))}-Bot (Chat ${escapeHtml(String(d.ersatz.chatId))})` : '✗ nicht eingerichtet'));
     }));
     el.innerHTML = zeilen.join('<br>');
   }

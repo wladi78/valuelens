@@ -28,6 +28,18 @@
 // Kontomeldungen, Wochenbericht/Tagesbewegungen/KO-Abstand. Ohne eigenen Bot springt der Waechter-Bot ein.
 const TELEGRAM_CHANNELS = ['kursalarm' => 'Kursalarme', 'analysen' => 'Bewertungs-Meldungen (unterbewertete Titel)', 'waechter' => 'Allgemein (Ersatz, wenn ein Kanal fehlt)'];
 
+// Ersatz-Bot je Kanal (16.11.2026 an einer Stelle zusammengefasst): ohne eigenen Bot gehen die Nachrichten hierhin -
+// levermann-signale.php, swing-signale.php ($tgKanal) und capolio_melden() (Waechter) machen genau das. Die
+// Einrichtungsseite zeigt es an, statt "nicht eingerichtet" zu melden.
+const TELEGRAM_ERSATZ = ['ausbruch' => 'swing', 'ict' => 'swing', 'levermann' => 'swing',
+    'buchungen' => 'waechter', 'sicherheit' => 'waechter', 'depot' => 'waechter'];
+// Kanal, ueber den tatsaechlich gesendet wird (eigener Bot, sonst Ersatz), oder null.
+function telegram_wirksamer_kanal($dataDir, $channel) {
+    if (telegram_config($dataDir, $channel)) return $channel;
+    $e = TELEGRAM_ERSATZ[$channel] ?? null;
+    return ($e && telegram_config($dataDir, $e)) ? $e : null;
+}
+
 function telegram_config_file($dataDir, $channel = null) {
     return $dataDir . '/telegram' . ($channel && isset(TELEGRAM_CHANNELS[$channel]) ? '_' . $channel : '') . '.json';
 }

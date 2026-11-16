@@ -12,7 +12,7 @@ function tg_respond($data, $code = 200) { http_response_code($code); echo json_e
 
 if (empty($_SESSION['user'])) tg_respond(['error' => 'not_authenticated'], 401);
 $users = jsonStoreRead($dataDir . '/users.json');
-if (empty($users[$_SESSION['user']]['isAdmin'])) tg_respond(['error' => 'forbidden'], 403);
+if (!capolioIsVerwalter($dataDir, $_SESSION['user'])) tg_respond(['error' => 'forbidden'], 403);
 
 $action = $_REQUEST['action'] ?? 'get';
 // Kanal: 'optionen', 'swing', 'ausbruch', 'top3' oder 'kursalarm' - je ein eigener Bot (oder derselbe, wenn gewuenscht).
@@ -28,7 +28,10 @@ $maskiert = fn($id) => strlen((string) $id) > 4 ? str_repeat('•', strlen((stri
 switch ($action) {
     case 'get':
         $c = telegram_config($dataDir, $channel);
-        tg_respond(['channel' => $channel, 'label' => TELEGRAM_CHANNELS[$channel], 'configured' => (bool) $c, 'chatId' => $c ? $maskiert($c['chatId']) : null, 'savedAt' => $c['savedAt'] ?? null]);
+        $w = $c ? null : telegram_wirksamer_kanal($dataDir, $channel);
+        $ec = $w ? telegram_config($dataDir, $w) : null;
+        tg_respond(['channel' => $channel, 'label' => TELEGRAM_CHANNELS[$channel], 'configured' => (bool) $c, 'chatId' => $c ? $maskiert($c['chatId']) : null, 'savedAt' => $c['savedAt'] ?? null,
+            'ersatz' => $ec ? ['channel' => $w, 'label' => TELEGRAM_CHANNELS[$w], 'chatId' => $maskiert($ec['chatId'])] : null]);
 
     case 'find_chat':
         // Token aus dem Formular (noch nicht gespeichert) oder der hinterlegte.
@@ -49,7 +52,9 @@ switch ($action) {
         tg_respond(['saved' => true, 'testSent' => $r['ok'], 'message' => $r['ok'] ? null : $r['error']]);
 
     case 'test':
-        $r = telegram_send($dataDir, "🔔 Testnachricht von <b>ValueLens</b> (" . telegram_escape(TELEGRAM_CHANNELS[$channel]) . ") - " . date('d.m.Y H:i'), null, $channel);
+        // Ohne eigenen Bot ueber den Ersatz-Bot - genau der Weg, den die echten Meldungen nehmen (16.11.2026)
+        $w = telegram_wirksamer_kanal($dataDir, $channel) ?? $channel;
+        $r = telegram_send($dataDir, "🔔 Testnachricht von <b>ValueLens</b> (" . telegram_escape(TELEGRAM_CHANNELS[$channel]) . ($w !== $channel ? ', über ' . telegram_escape(TELEGRAM_CHANNELS[$w]) : '') . ") - " . date('d.m.Y H:i'), null, $w);
         tg_respond($r['ok'] ? ['sent' => true] : ['error' => 'telegram', 'message' => $r['error']]);
 
     case 'delete':

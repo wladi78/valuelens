@@ -31,6 +31,16 @@ function capolioIsAdmin($dataDir, $username) {
     $u = capolioUsers($dataDir);
     return $username !== null && $username !== '' && !empty($u[$username]['isAdmin']);
 }
+// Verwalter (seit 16.11.2026, vor der Freigabe an weitere Personen): Benutzerverwaltung, Loeschen von Konten/Depots,
+// Admin-Rechte, Steuerreport, Claude-/Drive-/OneDrive-/Telegram-Anbindung. isAdmin allein reicht dafuer NICHT mehr:
+// das Vorfuehrkonto, ein Familienkonto und das Automatik-Konto haben isAdmin nur, damit ihre Seiten (Signale,
+// TOP3, Drive-Import) laufen. Vorher konnte jedes davon fremde Konten und Depots endgueltig loeschen.
+const CAPOLIO_VERWALTER = ['lokal'];   // ValueLens: lokales Konto
+function capolioIsVerwalter($dataDir, $username) {
+    $u = capolioUsers($dataDir);
+    $username = (string) $username;
+    return in_array($username, CAPOLIO_VERWALTER, true) && !empty($u[$username]['isAdmin']) && empty($u[$username]['automatik']);
+}
 // Depot-Schluessel (Dateiname depot_<schluessel>.json), auf die ein Admin Zugriff hat.
 function capolioAdminDepotKeys($dataDir) {
     $keys = [];
