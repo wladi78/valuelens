@@ -867,18 +867,38 @@ function kiFitPeriodeBinden(el, sym){ el.querySelectorAll('[data-ki-fit-q]').for
 // Ohne deren Noten (A-F, Premium) und ohne Branchenvergleich - beides gibt es frei nicht. Zahlungen und Kurse: Yahoo
 // (Sonderausschuettungen herausgefiltert wie im Chart); Gewinn, Cashflow, Schulden: SEC-Jahresberichte (fitness.php).
 let _kiDivAnsicht = 'uebersicht';
+// stockanalysis.com (dividend-history.php, frei): Jahre in Folge erhoeht, Zahl-/Stich-/Ankuendigungstag. Yahoo kennt nur den Ex-Tag
+// und hat bei alten Titeln Luecken (KO 23 statt 63 Jahre in Folge). Je Symbol einmal je Sitzung; Fehler = keine Zusatzdaten.
+const _kiDivHist = {};
+function kiDivHist(sym){
+  sym = String(sym||'').toUpperCase(); if(!sym) return Promise.resolve(null);
+  if(!_kiDivHist[sym]) _kiDivHist[sym] = fetch('dividend-history.php?symbol=' + encodeURIComponent(sym), {cache:'no-store'})
+    .then(r=>r.ok ? r.json() : null).then(j=>(j && !j.error && Array.isArray(j.dividends)) ? j : null).catch(()=>null);
+  return _kiDivHist[sym];
+}
+function kiDivStreak(h){ const n = h && h.meta ? parseInt(String(h.meta.streakYears||'').replace(/[^0-9]/g,''), 10) : NaN; return isFinite(n) ? n : null; }
+const kiIstReit = ctx=>/real estate|reit/i.test(String((ctx && ((ctx.pos && (ctx.pos.sector||ctx.pos.sektor)) || ctx.sektor || (ctx.analyse && ctx.analyse.ddb && ctx.analyse.ddb.sector))) || ''));
 function kiDividendenSeite(el, d, sym){
   if(_kiFitChart){ try{ _kiFitChart.destroy(); } catch(e){} _kiFitChart = null; }
   const D = (_kiFitDivs && _kiFitDivs.sym===sym) ? _kiFitDivs : null;
+  const hp = _kiDivHist[String(sym).toUpperCase()], H = (hp && '_wert' in hp) ? hp._wert : undefined;   // undefined = laedt noch, null = keine Daten
+  if(H === undefined){ kiDivHist(sym).then(h=>{ _kiDivHist[String(sym).toUpperCase()]._wert = h; if(_kiFitFeld==='dividenden' && document.getElementById('kiFitness')===el) kiDividendenSeite(el, d, sym); }); }
+  const reit = kiIstReit(_kiChart && _kiChart.ctx);
   const kopf = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
       <button type="button" class="range-btn" data-ki-fit-zurueck="1">← Fitness</button><b style="font-size:15px;">Dividenden</b>
       ${[['uebersicht','Übersicht'],['rendite','Div.-Rendite'],['wachstum','Dividendenwachstum'],['sicherheit','Dividendensicherheit'],['historie','Dividendenhistorie']].map(([k,n])=>`<button type="button" class="range-btn${_kiDivAnsicht===k?' active':''}" data-ki-div-ans="${k}">${n}</button>`).join('')}
-      <span class="muted" style="font-size:11.5px;">Zahlungen und Kurse: Yahoo · Gewinn, Cashflow, Schulden: SEC</span></div>`;
+      <span class="muted" style="font-size:11.5px;">Zahlungen und Kurse: Yahoo · Zahltage und Jahre in Folge: stockanalysis.com${H===undefined?' (lädt …)':''} · Gewinn, Cashflow, Schulden: SEC</span></div>`;
   const binden = ()=>{
     el.querySelector('[data-ki-fit-zurueck]')?.addEventListener('click', ()=>{ _kiFitFeld = 'fcfdiv'; kiFitnessZeichnen(sym); });
     el.querySelectorAll('[data-ki-div-ans]').forEach(b=>b.addEventListener('click', ()=>{ _kiDivAnsicht = b.dataset.kiDivAns; kiDividendenSeite(el, d, sym); }));
   };
   if(!D || !D.divs.length){ el.innerHTML = kopf + `<div class="muted">${D ? 'Keine Dividendenzahlungen bei Yahoo.' : 'Lade Dividenden …'}</div>`; binden(); return; }
+  // Dividenden ohne Monatskurse (aelterer Zwischenstand im Tab, Nutzer 17.11.2026: Rendite bei O leer) - Kurse nachladen
+  if(!(D.kerzen && D.kerzen.length) && !D._kursLaedt){
+    D._kursLaedt = true;
+    fetch('quote.php?ohlc=1&symbols=' + encodeURIComponent(sym) + '&interval=1mo&range=max', {cache:'no-store'}).then(r=>r.json())
+      .then(q=>{ D.kerzen = Array.isArray(q && q.kerzen) ? q.kerzen : []; if(document.getElementById('kiFitness')===el && _kiFitFeld==='dividenden') kiDividendenSeite(el, d, sym); }).catch(()=>{});
+  }
   const divs = D.divs.map(([t,b])=>[String(t).slice(0,10), Number(b)]).filter(x=>x[1]>0).sort((a,b)=>a[0]<b[0]?-1:1);
   const k = D.kerzen || [];
   const kurs = k.length ? k[k.length-1][4] : null;
@@ -893,6 +913,11 @@ function kiDividendenSeite(el, d, sym){
   const cagr = n=>{ const a = jeJahr[letztJ-n], e = jeJahr[letztJ]; return (a>0 && e>0) ? (Math.pow(e/a, 1/n)-1)*100 : null; };
   const maxJ = {}; divs.forEach(([t,b])=>{ const y = +t.slice(0,4); if(y<jahrNow) maxJ[y] = Math.max(maxJ[y]||0, b); });   // hoechste Einzelzahlung je Jahr
   let folge = 0; for(let y=letztJ; maxJ[y-1]!=null && (maxJ[y] > maxJ[y-1]*1.0001 || jeJahr[y] > jeJahr[y-1]*1.0001); y--) folge++;
+  const folgeSa = kiDivStreak(H), folgeTxt = folgeSa!=null && folgeSa > folge ? `${folgeSa} Jahre <span class="muted" style="font-weight:400;font-size:11px;">(stockanalysis; Yahoo-Historie: ${folge})</span>` : folge+' Jahre';
+  // Letzte angekuendigte Dividende mit Zahltag (stockanalysis), sonst letzte Yahoo-Zahlung
+  const hl = H && H.dividends && H.dividends.length ? H.dividends[H.dividends.length-1] : null;
+  const datDe = s=>s ? escapeHtml(String(s).slice(0,10).split('-').reverse().join('.')) : '–';
+  const zahltagZu = ex=>{ if(!H) return null; const z = H.dividends.find(x=>String(x.date||'').slice(0,10)===ex); return z ? z.payDate : null; };
   let gezahlt = 0; for(let y=letztJ; jeJahr[y]>0; y--) gezahlt++;
   // Frequenz aus den letzten 12 Monaten, Vorwaerts-Dividende = letzte Zahlung x Frequenz
   const n12 = divs.filter(x=>x[0]>vorTagen(370)).length, freq = n12>=11 ? 12 : (n12>=4 ? 4 : (n12>=2 ? 2 : 1));
@@ -907,6 +932,7 @@ function kiDividendenSeite(el, d, sym){
   const epsJe = y=>y.gewinn!=null && y.aktien ? y.gewinn/y.aktien : null, fcfJe = y=>y.ocf!=null && y.aktien ? (y.ocf-(y.capex||0))/y.aktien : null;
   const quoteGewinn = (divJahr, y)=>{ const e = epsJe(y); return e>0 && divJahr>0 ? divJahr/e*100 : null; };
   const quoteFcf = y=>{ const f = y.ocf!=null ? y.ocf-(y.capex||0) : null; return f>0 && y.divGezahlt>0 ? y.divGezahlt/f*100 : null; };
+  const quoteOcf = y=>y.ocf>0 && y.divGezahlt>0 ? y.divGezahlt/y.ocf*100 : null;   // REITs: op. Cashflow ~ FFO
   const divJahrZu = y=>jeJahr[+String(y.date).slice(0,4)] || null;
   let html = '';
   if(_kiDivAnsicht === 'uebersicht'){
@@ -915,11 +941,14 @@ function kiDividendenSeite(el, d, sym){
         + zeile('Div.-Rendite (TTM)', kurs ? pz(ttm/kurs*100) : '–', 'letzte 12 Monate')
         + zeile('Jährliche Ausschüttung (FWD)', kiNum(fwd, 2)) + zeile('Ausschüttungsquote (Gewinn)', pz(quoteGewinn(divJahrZu(s0), s0)), s0.date ? 'GJ '+String(s0.date).slice(0,4) : '')
         + zeile('Ausschüttungsquote (Free Cashflow)', pz(quoteFcf(s0)))
-        + zeile('5-Jahres-Wachstumsrate', pz(cagr(5))) + zeile('Erhöhungen in Folge', folge+' Jahre') + zeile('Jahre gezahlt', gezahlt+' Jahre'))
-      + tab('ZULETZT GEZAHLTE DIVIDENDE', zeile('Betrag', kiNum(letzte[1], 4)) + zeile('Ex-Dividenden-Datum', escapeHtml(letzte[0].split('-').reverse().join('.')))
-        + zeile('Frequenz', freqTxt) + zeile('Zahlungen letzte 12 Monate', String(n12))
-        + zeile('Veränderung zur Vorzahlung', divs.length>1 ? pz((letzte[1]/divs[divs.length-2][1]-1)*100) : '–'))
-      + `</div><div class="muted" style="font-size:11px;margin-top:6px;">Ex-Datum laut Yahoo; Zahltag und angekündigte Dividende liefert die freie Quelle nicht. Sonderausschüttungen sind herausgerechnet.</div>`;
+        + (reit ? zeile('Ausschüttungsquote (op. Cashflow ≈ FFO)', pz(quoteOcf(s0)), 'bei REITs maßgeblich') : '')
+        + zeile('5-Jahres-Wachstumsrate', pz(cagr(5))) + zeile('Erhöhungen in Folge', folgeTxt) + zeile('Jahre gezahlt', gezahlt+' Jahre'))
+      + tab(hl ? 'ZULETZT ANGEKÜNDIGTE DIVIDENDE' : 'ZULETZT GEZAHLTE DIVIDENDE', hl
+        ? zeile('Betrag', kiNum(hl.amount, 4)) + zeile('Ex-Dividenden-Datum', datDe(hl.date)) + zeile('Zahltag', datDe(hl.payDate)) + (hl.recordDate ? zeile('Stichtag', datDe(hl.recordDate)) : '')
+          + (hl.declarationDate ? zeile('Ankündigung', datDe(hl.declarationDate)) : '') + zeile('Frequenz', escapeHtml(String((H.meta && H.meta.frequency) || freqTxt)))
+        : zeile('Betrag', kiNum(letzte[1], 4)) + zeile('Ex-Dividenden-Datum', datDe(letzte[0])) + zeile('Frequenz', freqTxt) + zeile('Zahlungen letzte 12 Monate', String(n12))
+          + zeile('Veränderung zur Vorzahlung', divs.length>1 ? pz((letzte[1]/divs[divs.length-2][1]-1)*100) : '–'))
+      + `</div><div class="muted" style="font-size:11px;margin-top:6px;">${hl ? 'Angekündigte Dividende und Zahltage: stockanalysis.com. ' : 'Zahltag und Ankündigung nicht verfügbar (nur Ex-Datum von Yahoo). '}Sonderausschüttungen sind herausgerechnet.</div>`;
   } else if(_kiDivAnsicht === 'rendite'){
     // Je Kalenderjahr: Rendite zum Jahresende, Durchschnitt, Max, Min (Dividende der letzten 12 Monate je Monatsschluss)
     const proJahr = {};
@@ -956,6 +985,7 @@ function kiDividendenSeite(el, d, sym){
     const zeilen = [
       ['Ausschüttungsquote Gewinn', y=>pz(quoteGewinn(divJahrZu(y), y)), 'Dividende ÷ Gewinn je Aktie'],
       ['Ausschüttungsquote Free Cashflow', y=>pz(quoteFcf(y)), 'gezahlte Dividenden ÷ (op. Cashflow − Investitionen)'],
+      ...(reit ? [['Ausschüttungsquote op. Cashflow (≈ FFO)', y=>pz(quoteOcf(y)), 'bei REITs aussagekräftiger als Gewinn']] : []),
       ['Free-Cashflow-Deckung', y=>{ const q = quoteFcf(y); return q ? kiNum(100/q,2)+'×' : '–'; }, 'über 1,0× = aus dem Cashflow gedeckt'],
       ['Schulden ÷ Eigenkapital', y=>y.schulden!=null && y.ek>0 ? kiNum(y.schulden/y.ek,2)+'×' : '–', ''],
       ['Schulden ÷ Gesamtvermögen', y=>pz(y.schulden!=null && y.vermoegen>0 ? y.schulden/y.vermoegen*100 : null), ''],
@@ -964,19 +994,19 @@ function kiDividendenSeite(el, d, sym){
       ['Op. Cashflow (Mio.)', y=>y.ocf!=null ? kiNum(y.ocf/1e6,0) : '–', ''],
     ];
     const ampel = q=>q==null ? '' : (q<=60 ? '#16a34a' : (q<=85 ? '#d97706' : '#dc2626'));
-    const qF = quoteFcf(s0), qG = quoteGewinn(divJahrZu(s0), s0);
+    const qF = reit ? quoteOcf(s0) : quoteFcf(s0), qG = quoteGewinn(divJahrZu(s0), s0);
     html = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;">`
       + `<div class="panel" style="flex:1 1 320px;padding:10px 12px;font-size:12.5px;"><div style="font-weight:700;font-size:12px;letter-spacing:.04em;margin-bottom:6px;">EINSCHÄTZUNG (eigene Regel, keine Note)</div>`
-      + `<div>Ausschüttungsquote Free Cashflow <b style="color:${ampel(qF)};">${pz(qF)}</b> · Gewinn <b style="color:${ampel(qG)};">${pz(qG)}</b></div>`
+      + `<div>Ausschüttungsquote ${reit ? 'op. Cashflow (≈ FFO, REIT)' : 'Free Cashflow'} <b style="color:${ampel(qF)};">${pz(qF)}</b> · Gewinn <b style="color:${reit ? '' : ampel(qG)};">${pz(qG)}</b>${reit ? ' <span class="muted">(bei REITs wegen Abschreibungen wenig aussagekräftig)</span>' : ''}</div>`
       + `<div class="muted" style="font-size:11.5px;margin-top:4px;">grün bis 60 %, gelb bis 85 %, rot darüber (REITs/BDCs zahlen regelmäßig mehr – dort zählt der Cashflow).</div></div></div>`
       + `<div style="overflow-x:auto;"><table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr><th style="text-align:left;padding:4px 8px;">Kennzahl</th>${zj.map(y=>`<th style="text-align:right;padding:4px 6px;">${String(y.date).slice(5,7)}/${String(y.date).slice(2,4)}</th>`).join('')}</tr></thead><tbody>`
       + zeilen.map(([n,f,h])=>`<tr style="border-top:1px solid var(--border);"><td style="padding:4px 8px;">${n}${h?`<div class="muted" style="font-size:10.5px;">${h}</div>`:''}</td>${zj.map(y=>`<td style="text-align:right;padding:4px 6px;">${f(y)}</td>`).join('')}</tr>`).join('')
       + `</tbody></table></div>`;
   } else {
     const rev = divs.slice().reverse().slice(0, 80);
-    html = `<table style="width:100%;font-size:12.5px;border-collapse:collapse;"><thead><tr style="text-align:right;"><th style="text-align:left;padding:4px 8px;">Ex-Datum</th><th style="padding:4px 8px;">Betrag</th><th style="padding:4px 8px;">Veränderung</th><th style="padding:4px 8px;">Rendite (TTM) am Tag</th></tr></thead><tbody>`
+    html = `<table style="width:100%;font-size:12.5px;border-collapse:collapse;"><thead><tr style="text-align:right;"><th style="text-align:left;padding:4px 8px;">Ex-Datum</th><th style="padding:4px 8px;">Zahltag</th><th style="padding:4px 8px;">Betrag</th><th style="padding:4px 8px;">Veränderung</th><th style="padding:4px 8px;">Rendite (TTM) am Tag</th></tr></thead><tbody>`
       + rev.map((x,i)=>{ const vor = rev[i+1]; const v = vor ? (x[1]/vor[1]-1)*100 : null; const kk = k.filter(z=>z[0]<=x[0]).pop(); const r = kk && kk[4]>0 ? ttmBis(x[0])/kk[4]*100 : null;
-          return `<tr style="text-align:right;border-top:1px solid var(--border);"><td style="text-align:left;padding:4px 8px;">${escapeHtml(x[0].split('-').reverse().join('.'))}</td><td style="padding:4px 8px;">${kiNum(x[1],4)}</td><td style="padding:4px 8px;color:${v==null||Math.abs(v)<0.01?'':(v>0?'#16a34a':'#dc2626')};">${v==null||Math.abs(v)<0.01?'–':(v>0?'+':'')+kiNum(v,2)+' %'}</td><td style="padding:4px 8px;">${pz(r)}</td></tr>`; }).join('')
+          return `<tr style="text-align:right;border-top:1px solid var(--border);"><td style="text-align:left;padding:4px 8px;">${escapeHtml(x[0].split('-').reverse().join('.'))}</td><td style="padding:4px 8px;">${datDe(zahltagZu(x[0]))}</td><td style="padding:4px 8px;">${kiNum(x[1],4)}</td><td style="padding:4px 8px;color:${v==null||Math.abs(v)<0.01?'':(v>0?'#16a34a':'#dc2626')};">${v==null||Math.abs(v)<0.01?'–':(v>0?'+':'')+kiNum(v,2)+' %'}</td><td style="padding:4px 8px;">${pz(r)}</td></tr>`; }).join('')
       + `</tbody></table><div class="muted" style="font-size:11px;margin-top:6px;">Letzte ${rev.length} Zahlungen (Yahoo, Ex-Datum), ohne Sonderausschüttungen.</div>`;
   }
   el.innerHTML = kopf + html; binden();
@@ -1056,6 +1086,7 @@ async function kiFitnessZeichnen(sym){
       if(_kiTab==='fitness' && _kiFitDivs.divs.length) kiFitnessZeichnen(sym);
     }).catch(()=>{});
   }
+  if(_kiFitFeld==='dividenden') return kiDividendenSeite(el, (d && Array.isArray(d.jahre)) ? d : {jahre:[]}, sym);   // auch ohne SEC (Nicht-US)
   if(!d || d.fehler || !(d.jahre||[]).length){ el.innerHTML = `<b style="font-size:15px;">Finanzielle Fitness</b> <span class="muted">· Fiscal fitness – ${escapeHtml((d && (d.fehler||d.error)) || 'keine Daten')}</span>`; return; }
   const feld = KI_FIT_FELDER.find(f=>f[0]===_kiFitFeld) || KI_FIT_FELDER[0];
   if(feld[0]==='tabelle') return kiFinanzTabelle(el, d, sym);
@@ -1738,6 +1769,7 @@ async function chartZeichnenIntern(ctx, interval){
   };
   // Linie ab "von" bis heute, Beschriftung im Chart am Linienanfang statt an der Preisachse (Nutzer 17.11.2026: "ziemlich alles
   // ueberlappt - kleine Linien wie bei TradingView"). Die Anfaenge liegen in verschiedenen Monaten, die Texte also nebeneinander.
+  const _segTexte = [];   // schon beschriftete Preise (Ausduennen, 17.11.2026)
   const segLinie = (von, preis, farbe, text)=>{
     if(preis==null || !isFinite(Number(preis))) return;
     const ende = zeiten[zeiten.length-1];
@@ -1745,7 +1777,9 @@ async function chartZeichnenIntern(ctx, interval){
     if(start >= ende){ serie.createPriceLine({price:Number(preis), color:farbe, lineWidth:1, lineStyle:LS.Dashed, axisLabelVisible:false, title:text}); linien.push([farbe, text, Number(preis)]); return; }
     const s = chart.addLineSeries({color:farbe, lineWidth:1, lineStyle:LS.Dashed, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false});
     s.setData([{time:start, value:Number(preis)}, {time:ende, value:Number(preis)}]);
-    s.setMarkers([{time:start, position:'aboveBar', color:farbe, shape:'circle', size:0.3, text}]);
+    const nah = _segTexte.some(x=>Math.abs(x/Number(preis)-1) < 0.015);
+    s.setMarkers([{time:start, position:'aboveBar', color:farbe, shape:'circle', size:0.3, text: nah ? '' : text}]);
+    if(!nah) _segTexte.push(Number(preis));
     linien.push([farbe, text, Number(preis)]);
   };
   // Order Block als hellblaue Flaeche: Baseline-Serie, gefuellt zwischen Unterkante (Basis) und Oberkante
@@ -2006,8 +2040,10 @@ async function chartZeichnenIntern(ctx, interval){
     const verg = (rJetzt!=null && dk.normalRendite) ? (rJetzt>dk.normalRendite*1.1 ? ['über dem Schnitt → eher günstig', '#16a34a'] : (rJetzt<dk.normalRendite*0.9 ? ['unter dem Schnitt → eher teuer', '#dc2626'] : ['etwa im Schnitt', ''])) : ['', ''];
     document.getElementById('kiKachelDiv').innerHTML =
       kiKachel('Dividenden-Wachstum', dk.cagr5!=null ? kiNum(dk.cagr5,1)+' % p. a.' : '–', `5 J.${dk.cagr10!=null?' · 10 J. '+kiNum(dk.cagr10,1)+' %':''}`)
-      + kiKachel('Erhöhungen in Folge', dk.folge+' Jahre', `bis ${dk.letztesJahr} · ${dk.bezahlt} Jahre ohne Unterbrechung gezahlt`)
+      + kiKachel('Erhöhungen in Folge', `<span id="kiFolgeWert">${dk.folge} Jahre</span>`, `bis ${dk.letztesJahr} · ${dk.bezahlt} Jahre ohne Unterbrechung gezahlt`)
       + kiKachel('Normale Rendite', dk.normalRendite!=null ? kiNum(dk.normalRendite,2)+' %' : '–', rJetzt!=null ? `jetzt ${kiNum(rJetzt,2)} % – ${verg[0]}` : '', verg[1]);
+    kiDivHist(ctx.sym).then(h=>{ const n = kiDivStreak(h), w = document.getElementById('kiFolgeWert');
+      if(w && n!=null && n > dk.folge){ w.textContent = n + ' Jahre'; w.title = 'stockanalysis.com; aus der Yahoo-Historie gerechnet: ' + dk.folge; } });
   }
   // Infofeld beim Ueberfahren: Datum, Kurs, Rendite zu dem Zeitpunkt, KGV und Abweichung zum Fair Value (sobald Gewinne geladen)
   const tip = document.createElement('div');

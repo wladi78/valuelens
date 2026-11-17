@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.22 – 17.11.2026
+- Dividenden: Jahre mit Erhöhung in Folge und angekündigte Dividende mit Zahltag aus einer zweiten freien Quelle (z. B. Coca-Cola 64 Jahre); bei REITs Ausschüttungsquote auf den operativen Cashflow; Dividenden auch für Aktien ohne US-Börsenberichte.
+- Chart Analyse: Beschriftungen dicht beieinanderliegender Linien ausgedünnt.
+
 ## 1.21 – 17.11.2026
 - Fitness: neuer Bereich **Dividenden** mit Übersicht, Dividendenrendite (je Jahr, Rendite auf Einstand), Dividendenwachstum (1/3/5/10 J.), Dividendensicherheit (Ausschüttungsquoten, Verschuldung) und Dividendenhistorie.
 - „Erhöhungen in Folge“ zählt genauer (z. B. McCormick 39 statt 27 Jahre).
