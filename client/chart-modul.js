@@ -194,7 +194,7 @@ function kiChartModal(){
   o.innerHTML = `<div class="modal" style="max-width:1180px;width:97vw;">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
       <b id="kiChartTitel" style="font-size:15px;"></b>
-      <input id="kiChartSuche" list="kiChartSymbole" placeholder="Andere Aktie: Symbol oder Name …" title="Jede Aktie: Depot, KI-Analysen, Watchlist oder ein beliebiges Yahoo-Symbol (z. B. KO, SIE.DE)" style="width:220px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:12.5px;">
+      <input id="kiChartSuche" list="kiChartSymbole" placeholder="Andere Aktie: Symbol oder Name …" title="Jede Aktie: Depot, KI-Analysen, Watchlist oder ein beliebiges Yahoo-Symbol (z. B. KO, SIE.DE)" style="width:150px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:12.5px;">
       <datalist id="kiChartSymbole"></datalist>
       <!-- Durchblaettern (Nutzer 17.11.2026: "schnell durch das Depot, jede Aktie nach und nach per Pfeil") - auch Pfeiltasten -->
       <span style="display:inline-flex;align-items:center;gap:4px;" title="Liste waehlen und mit ◀ ▶ (oder den Pfeiltasten) Aktie fuer Aktie durchgehen">
@@ -211,10 +211,11 @@ function kiChartModal(){
       <button type="button" class="range-btn" data-ki-iv="1mo">Monat</button>
       <button type="button" class="range-btn" data-ki-iv="1wk">Woche</button>
       <button type="button" class="range-btn" data-ki-iv="1d">Tag</button>
-      <button type="button" class="btn ghost" data-ki-alarm-menue="1" title="Kursalarm für diese Aktie setzen (bleibt gespeichert, Meldung per Telegram)" style="padding:4px 10px;">🔔 Alarm</button>
-      <button type="button" class="btn ghost" data-ki-neu-tab="1" title="Chart als ganze Seite in einem neuen Browser-Tab öffnen" style="padding:4px 10px;">↗ Eigener Tab</button>
+      <button type="button" class="btn ghost" data-ki-alarm-menue="1" title="Kursalarm für diese Aktie setzen (bleibt gespeichert, Meldung per Telegram)" style="padding:4px 10px;">🔔<span class="ki-lang"> Alarm</span></button>
+      <button type="button" class="btn ghost" data-ki-neu-tab="1" title="Chart als ganze Seite in einem neuen Browser-Tab öffnen" style="padding:4px 10px;">↗<span class="ki-lang"> Eigener Tab</span></button>
       <button type="button" class="btn ghost" data-ki-chart-zu="1" style="padding:4px 10px;">✕</button>
     </div>
+    <style>#kiChartOverlay.ki-kompakt .ki-lang{ display:none; }</style>
     <div id="kiAlarmPanel" style="display:none;border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12.5px;"></div>
     <div id="kiChartLeiste" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:8px;">
       <button type="button" class="range-btn" data-ki-stil="kerzen">Kerzen</button><button type="button" class="range-btn" data-ki-stil="linie">Linie</button>
@@ -554,10 +555,16 @@ async function kiBlaetterListe(quelle){
     }
     const gesehen = new Set();
     return liste.filter(a=>a.ticker && !gesehen.has(a.ticker) && gesehen.add(a.ticker)).sort((a,b)=>String(a.ticker).localeCompare(String(b.ticker)))
-      .map(a=>({sym: a.ticker, name: a.name||'', keys: [a.ticker, kiSymbol(a)].map(gross)}));
+      .map(a=>({sym: a.ticker, y: kiSymbol(a), name: a.name||'', keys: [a.ticker, kiSymbol(a)].map(gross)}));
   }
   return (data.positions||[]).filter(p=>p.ticker && !(Number(p.shares) <= 0)).sort((a,b)=>String(a.name||a.ticker).localeCompare(String(b.name||b.ticker), 'de'))
     .map(p=>({sym: p.ticker, name: p.name||'', keys: [p.ticker, p.displaySymbol, p.symbol].filter(Boolean).map(gross)}));
+}
+const _kiVorgeladen = new Set();
+function kiBlaetterVorladen(e){
+  const y = e && (e.y || e.sym); if(!y || _kiVorgeladen.has(y)) return;
+  _kiVorgeladen.add(y);
+  setTimeout(()=>{ fetch('bewertung-reihen.php?symbol=' + encodeURIComponent(y)).catch(()=>{}); }, 1500);
 }
 function kiBlaetterIndex(liste){
   const c = _kiChart && _kiChart.ctx; if(!c) return -1;
@@ -570,6 +577,7 @@ async function kiBlaetterAnzeige(){
   const liste = await kiBlaetterListe(q);
   const i = kiBlaetterIndex(liste);
   el.textContent = liste.length ? ((i >= 0 ? i+1 : '–') + ' / ' + liste.length) : 'leer';
+  if(liste.length > 1 && i >= 0) kiBlaetterVorladen(liste[(i + 1) % liste.length]);
 }
 async function kiBlaettern(richtung){
   if(_kiBlaetterLaeuft) return;
@@ -1431,8 +1439,17 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
       <div><b style="font-size:12.5px;">Bewertung im Zeitverlauf: KGV gegen Fair Value</b><div style="position:relative;height:240px;"><canvas id="kiPerfKgv"></canvas></div></div></div>`;
     kiPerfZeichnen(j, pkt, FVR, npe); });
 }
+// Kopfzeile einzeilig halten (Nutzer 17.11.2026): erst mit Texten messen, bricht sie um, die Texte von Alarm/Eigener Tab weglassen
+function kiKopfKompakt(){
+  const o = document.getElementById('kiChartOverlay'); if(!o || !o.classList.contains('show')) return;
+  const kopf = o.querySelector('.modal > div'); if(!kopf) return;
+  o.classList.remove('ki-kompakt');
+  const zeilen = () => { const t = [...kopf.children].filter(x=>x.offsetParent).map(x=>x.getBoundingClientRect().top); return t.length ? Math.max(...t) - Math.min(...t) : 0; };
+  if(zeilen() > 20) o.classList.add('ki-kompakt');
+}
+window.addEventListener('resize', ()=>{ clearTimeout(kiKopfKompakt._t); kiKopfKompakt._t = setTimeout(kiKopfKompakt, 150); });
 async function chartZeichnen(ctx, interval){
-  try{ await chartZeichnenIntern(ctx, interval); kiBlaetterAnzeige(); }
+  try{ await chartZeichnenIntern(ctx, interval); kiBlaetterAnzeige(); kiKopfKompakt(); }
   catch(e){ console.error('Chart', e); const i = document.getElementById('kiChartInfo'); if(i) i.textContent = 'Chart-Fehler: ' + e.message; }
 }
 async function chartZeichnenIntern(ctx, interval){

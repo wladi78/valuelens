@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.13 – 17.11.2026
+- Bewertung: Firmen, deren SEC-Zahlen veraltet sind (z. B. Baidu, letzte Daten 2010), nehmen jetzt die aktuellen Yahoo-Zahlen; bei Yahoo-Zahlen wird das ADR-Verhältnis nicht mehr doppelt angewandt (Baidu zeigte einen viel zu hohen Fair Value).
+- Chart: Kopfzeile bleibt in einer Zeile (bei wenig Platz zeigen Alarm und Eigener Tab nur ihr Zeichen); beim Durchblättern wird die nächste Aktie vorgeladen.
+
 ## 1.12 – 17.11.2026
 - Chart: Aktien **durchblättern** – oben „Meine Käufe“ oder „Watchlist“ wählen und mit ◀ ▶ (oder den Pfeiltasten links/rechts) Aktie für Aktie durchgehen; der Zähler zeigt die Stelle in der Liste.
 

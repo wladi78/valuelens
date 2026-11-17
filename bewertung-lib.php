@@ -169,6 +169,18 @@ function bewertung_reihen($symbol, $neu = false) {
             }
         }
     }
+    // SEC-Reihe veraltet (BIDU 17.11.2026: Baidu liefert der SEC seit 2011 keine Jahreswerte mehr in dieser Form, die Reihe endete
+    // 2010 -> Fair Value 1.785 $ bei 71 $ Kurs, erwartete Rendite 8,5 Mrd. %). Endet sie mehr als 3 Jahre vor heute, Yahoo nehmen;
+    // liefert auch Yahoo nichts, lieber keine Bewertung als eine falsche.
+    if ($out['quelle']) {
+        $letzt = 0;
+        foreach (['operativ', 'gaap'] as $r) foreach ($out['reihen'][$r] as $e) $letzt = max($letzt, (int) substr($e['date'], 0, 4));
+        if ($letzt < (int) date('Y') - 3) {
+            $out['secVeraltet'] = $letzt;
+            $out['quelle'] = null; $out['waehrung'] = null; $out['steuersatz'] = null; $out['firma'] = null;
+            $out['reihen'] = ['gaap' => [], 'operativ' => [], 'fcf' => [], 'ocf' => [], 'sbc' => []];
+        }
+    }
     if (!$out['quelle']) {
 
         $ts = yahoo_fetch_timeseries($symbol, ['annualDilutedEPS', 'annualOperatingIncome', 'annualInterestExpense', 'annualTaxRateForCalcs',
@@ -250,6 +262,9 @@ function bewertung_reihen($symbol, $neu = false) {
             }
         }
     }
+    // Nur SEC-Werte gelten je Stammaktie. Yahoo liefert je gehandeltem Papier (also je ADR) - BIDU 17.11.2026: Yahoo-EPS 2024 65,92 CNY
+    // = Baidus Wert je ADS; mal 8 genommen ergab Fair Value 314 $ bei 71 $ Kurs.
+    if (strpos((string) $out['quelle'], 'sec') !== 0) { $out['adrFaktor'] = 1; $out['adrPruefen'] = false; }
     if ($out['adrFaktor'] != 1) foreach ($out['reihen'] as $k => $r) foreach ($r as $i => $e) $out['reihen'][$k][$i]['v'] = round($e['v'] * $out['adrFaktor'], 4);
     // Analystenschaetzungen (Konsens) fuer laufendes und naechstes Geschaeftsjahr aus Yahoo earningsTrend - frei, wie die
     // "E"-Jahre bei Vorlage (ADM 07.11.2026: Yahoo 5,59/5,67, Vorlage 5,62E/5,81E). Je Aktie in Kurswaehrung (bei ADRs je ADR).
