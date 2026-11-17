@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.15 – 17.11.2026
+- Chart: Die Kennzahlen rechts überdecken die Schalter darüber nicht mehr; Warnungen stehen in eigener Zeile unter den Kacheln.
+- Warnungen unterschieden: rot = vermutlich Datenfehler, orange = Sonderlage (z. B. früher kaum Gewinn, sehr hohes Normal-KGV) oder bekannter Sonderfall (Brookfield BIPC/BEPC).
+
 ## 1.14 – 17.11.2026
 - Bewertung: **rote Warnung**, wenn die Zahlen unplausibel sind (z. B. KGV unter 3, Fair Value mehr als das 5-Fache des Kurses) – dann ist meist die Datenquelle falsch, nicht die Aktie billig.
 - BlackRock (BLK): wieder alle Jahre seit 2007 (Firma meldet seit 2024 unter neuer SEC-Nummer).

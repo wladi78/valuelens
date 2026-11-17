@@ -543,19 +543,29 @@ function renderAktienChartSeite(){
 // Plausibilitaet der Bewertung (17.11.2026, nach Baidu: Fair Value 1.785 $ bei 71 $ Kurs). Werte ausserhalb dieser Grenzen kommen
 // praktisch nur von Datenfehlern (Waehrung, ADR-Verhaeltnis, veraltete oder falsch skalierte Zahlen) - dann rot warnen statt rechnen lassen.
 // Ergebnis steht zusaetzlich in window._kiLetzteBewertung (fuer die Pruefliste ueber Depot/Watchlist).
+// Bekannte Sonderfaelle, bei denen kein freier Bezugswert (GAAP, operativ, Cashflow) die Firma richtig bewertet (17.11.2026)
+const KI_SONDERFAELLE = {
+  BIPC: 'Brookfield Infrastructure Corp. führt die eigenen Aktien als Verbindlichkeit – jede Kursänderung läuft als Gewinn oder Verlust durch (GAAP 2024: −5,11 $, 2025: −2,01 $). Bewertung besser über FFO je Einheit der Partnerschaft BIP und die Dividendenrendite.',
+  BEPC: 'Brookfield Renewable Corp. führt die eigenen Aktien als Verbindlichkeit – der GAAP-Gewinn schwankt mit dem eigenen Kurs. Bewertung besser über FFO je Einheit der Partnerschaft BEP und die Dividendenrendite.',
+};
+function kiSonderfall(sym){ const s = String(sym||'').toUpperCase().split('.')[0]; return KI_SONDERFAELLE[s] || null; }
 function kiPlausibel(kurs, epsT, fv, ror, npe){
-  const g = [];
+  const g = [], sonder = [];
   const kgv = epsT>0 && kurs>0 ? kurs/epsT : null;
   if(kgv!=null && kgv < 3) g.push('KGV ' + kiNum(kgv,1) + ' (unter 3)');
   if(kgv!=null && kgv > 300) g.push('KGV ' + kiNum(kgv,0) + ' (über 300)');
   if(fv>0 && kurs>0 && fv/kurs > 5) g.push('Fair Value ' + kiNum(fv/kurs,1) + '-fach des Kurses');
   if(fv>0 && kurs>0 && fv/kurs < 0.05) g.push('Fair Value unter 5 % des Kurses');
-  if(ror!=null && (ror > 60 || ror < -60)) g.push('erwartete Rendite ' + kiNum(ror,0) + ' % p. a.');
-  if(npe!=null && (npe < 2 || npe > 200)) g.push('Normal-KGV ' + kiNum(npe,1));
+  if(ror!=null && (ror > 60 || ror < -60)) sonder.push('erwartete Rendite ' + kiNum(ror,0) + ' % p. a.');
+  if(npe!=null && (npe < 2 || npe > 200)) sonder.push('Normal-KGV ' + kiNum(npe,1));
   const c = _kiChart && _kiChart.ctx;
-  window._kiLetzteBewertung = {sym: c && c.sym, titel: c && c.titel, kgv, fvFaktor: fv>0 && kurs>0 ? fv/kurs : null, ror, npe, gruende: g, zeit: Date.now()};
-  if(!g.length) return '';
-  return `<div style="flex-basis:100%;border:2px solid #dc2626;border-radius:10px;padding:6px 12px;color:#dc2626;font-size:12.5px;font-weight:700;">⚠️ Bewertung unplausibel: ${escapeHtml(g.join(' · '))} – vermutlich ein Datenfehler (Währung, ADR-Verhältnis oder veraltete Zahlen). Nicht danach handeln.</div>`;
+  window._kiLetzteBewertung = {sym: c && c.sym, titel: c && c.titel, kgv, fvFaktor: fv>0 && kurs>0 ? fv/kurs : null, ror, npe, gruende: g.concat(sonder), zeit: Date.now()};
+  const kasten = (farbe, text) => `<div style="border:2px solid ${farbe};border-radius:10px;padding:6px 12px;color:${farbe};font-size:12.5px;font-weight:700;margin-bottom:8px;">${text}</div>`;
+  const sf = kiSonderfall(c && (c.sym || c.posSym));
+  if(sf) return kasten('#d97706', `⚠️ Sonderfall – KGV und Fair Value hier nicht aussagekräftig: ${escapeHtml(sf)}`);
+  if(g.length) return kasten('#dc2626', `⚠️ Bewertung unplausibel: ${escapeHtml(g.concat(sonder).join(' · '))} – vermutlich ein Datenfehler (Währung, ADR-Verhältnis oder veraltete Zahlen). Nicht danach handeln.`);
+  if(sonder.length) return kasten('#d97706', `⚠️ Kennzahl außerhalb des üblichen Bereichs: ${escapeHtml(sonder.join(' · '))} – meist eine Firma, die früher kaum Gewinn hatte (das Normal-KGV ist dann sehr hoch). Die Rendite-Schätzung ist hier nicht aussagekräftig.`);
+  return '';
 }
 // ---- Durchblaettern (17.11.2026): Depot (Positionen nach Name), Watchlist, KI-Analysen ----
 // Jeder Eintrag: {sym: was kiChartSymbolOeffnen bekommt, keys: alle Schreibweisen zum Wiederfinden}.
@@ -676,7 +686,8 @@ function kiScoreNetz(f, g, pkt){
 // Kennzahlen-Box ("Graph Key" nach Vorlage im Bewertungs-Reiter rechts neben den Hauptchart (Nutzer 12.11.2026: Seite ist
 // schmaler, rechts ist Platz). Chart wird 280 px schmaler; FY-Tabelle, Legende und Prognose bleiben darunter.
 function kiGraphKeySetzen(key){
-  const cb = document.getElementById('kiChartBox'); document.getElementById('kiGraphKey')?.remove();
+  const cb = document.getElementById('kiChartBox');
+  const altKey = document.getElementById('kiGraphKey'); if(altKey){ if(altKey._ro) altKey._ro.disconnect(); altKey.remove(); }
   if(!cb) return;
   if(!key || _kiTab!=='bewertung' || cb.parentElement.clientWidth < 900){ cb.style.width = '100%'; return; }
   const eltern = cb.parentElement; if(getComputedStyle(eltern).position==='static') eltern.style.position = 'relative';
@@ -686,6 +697,13 @@ function kiGraphKeySetzen(key){
   const unten = document.getElementById('kiChartFy') || cb;
   side.style.cssText = `position:absolute;right:${parseFloat(getComputedStyle(eltern).paddingRight)||0}px;top:${cb.offsetTop}px;width:268px;max-height:${Math.max(340, unten.offsetTop + unten.offsetHeight - cb.offsetTop)}px;overflow-y:auto;overflow-x:hidden;`;
   key.style.flex = ''; side.appendChild(key); eltern.appendChild(side);
+  // Kommt oberhalb des Charts spaeter etwas dazu (Warnung, Kacheln, Alarm-Leiste), rutscht der Chart nach unten - die Spalte
+  // muss mitwandern, sonst liegt sie ueber den Haekchen (Nutzer 17.11.2026, Block/XYZ).
+  if(window.ResizeObserver){
+    const lage = ()=>{ side.style.top = cb.offsetTop + 'px'; side.style.maxHeight = Math.max(340, unten.offsetTop + unten.offsetHeight - cb.offsetTop) + 'px'; };
+    const ro = new ResizeObserver(lage); ro.observe(eltern); const kk = document.getElementById('kiChartKacheln'); if(kk) ro.observe(kk);
+    side._ro = ro;
+  }
   // Chart ist jetzt schmaler - LWC behaelt den rechten Rand und schneidet links ab -> Zeitraum neu setzen
   [60, 300, 1000].forEach(ms=>setTimeout(()=>{ try{ kiZeitraumAnwenden(); } catch(e){} }, ms));   // autoSize passt die Breite verzoegert an
 }
@@ -1393,13 +1411,18 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
   const score = an && an.qualityScore!=null ? [an.qualityScore+' / 100', 'Qualität (KI)'] : (f.piotroski && typeof f.piotroski==='object' ? [f.piotroski.score+' / '+f.piotroski.maxScore, 'Piotroski'] : ['–', 'Qualität']);
   const kachel = kiKachel; const _ungenutzt = (titel, wert, unter, farbe)=>`<div style="border:1px solid var(--border);border-radius:10px;padding:6px 12px;min-width:120px;background:var(--surface-hover);"><div class="muted" style="font-size:11px;">${titel}</div><div style="font-size:18px;font-weight:700;${farbe?'color:'+farbe+';':''}">${wert}</div>${unter?`<div class="muted" style="font-size:10.5px;">${unter}</div>`:''}</div>`;
   const abw = fv ? (kurs/fv-1)*100 : null;
+  {
+    const kk = document.getElementById('kiChartKacheln');
+    let w = document.getElementById('kiPlausiWarn');
+    if(!w && kk){ w = document.createElement('div'); w.id = 'kiPlausiWarn'; kk.after(w); }
+    if(w) w.innerHTML = kiPlausibel(kurs, epsT, fv, ror, npe);
+  }
   const kach = document.getElementById('kiKachelBew');
   if(kach) kach.innerHTML = kachel(score[1], score[0], '')
     + kachel('KGV', epsT>0 ? kiNum(kurs/epsT,1)+'×' : '–', npe ? 'normal '+kiNum(npe,1)+'×' : '')
     + kachel('Div.-Rendite', divT>0 ? kiNum(divT/kurs*100,2)+' %' : '–', f.payoutRatioPct!=null ? 'Ausschüttung '+kiNum(f.payoutRatioPct,0)+' %' : '')
     + kachel(`Fair Value (${kiNum(FVR,FVR%1?1:0)} × ${BN.kurz})`, fv!=null ? kiNum(fv) : '–', abw!=null ? (abw>=0 ? kiNum(abw,0)+' % überbewertet' : kiNum(-abw,0)+' % unterbewertet') : '', abw==null ? '' : (abw>10 ? '#dc2626' : (abw<-10 ? '#16a34a' : '')))
     + kachel('Erw. Rendite p. a.', ror!=null ? kiNum(ror,1)+' %' : '–', '5 Jahre, Normal-KGV')
-    + kiPlausibel(kurs, epsT, fv, ror, npe)
     + kachel(`Wachstum ${BN.kurz}`, isFinite(g) ? kiNum(g,1)+' %' : '–', 'pro Jahr');
   const zeilen = pkt.slice(-12);
   const zelle = (inhalt, extra='')=>`<td style="padding:2px 6px;text-align:right;${extra}">${inhalt}</td>`;
@@ -1500,6 +1523,7 @@ async function chartZeichnenIntern(ctx, interval){
       _kiChart = {ctx, interval}; kiFitnessZeichnen(String(ctx.sym||'')); return; } }
   document.getElementById('kiForecast')?.remove(); kiGraphKeySetzen(null); _kiKursOben = null; _kiKaufAnker = null; _kiKaufMarker = []; _kiKaufInfo = {}; _kiDivMarker = []; _kiSplitMarker = [];   // Kennzahlen-Box rechts / Kaufpunkte beim Neuzeichnen zuruecksetzen
   document.getElementById('kiChartFy')?.remove();
+  const pw0 = document.getElementById('kiPlausiWarn'); if(pw0) pw0.innerHTML = '';
   document.getElementById('kiKachelBew').innerHTML = ''; document.getElementById('kiKachelDiv').innerHTML = ''; document.getElementById('kiKachelKi').innerHTML = ''; document.getElementById('kiChartJahre').innerHTML = '';
   kiChartAufraeumen();
   _kiChart = {ctx, interval};
