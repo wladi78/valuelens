@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.16 – 17.11.2026
+- Orange Warnung genauer: Die Rendite-Schätzung ist bei sehr hohem Wachstum oder einem Normal-KGV aus Jahren mit kaum Gewinn kein Richtwert.
+
 ## 1.15 – 17.11.2026
 - Chart: Die Kennzahlen rechts überdecken die Schalter darüber nicht mehr; Warnungen stehen in eigener Zeile unter den Kacheln.
 - Warnungen unterschieden: rot = vermutlich Datenfehler, orange = Sonderlage (z. B. früher kaum Gewinn, sehr hohes Normal-KGV) oder bekannter Sonderfall (Brookfield BIPC/BEPC).

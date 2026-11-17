@@ -564,7 +564,7 @@ function kiPlausibel(kurs, epsT, fv, ror, npe){
   const sf = kiSonderfall(c && (c.sym || c.posSym));
   if(sf) return kasten('#d97706', `⚠️ Sonderfall – KGV und Fair Value hier nicht aussagekräftig: ${escapeHtml(sf)}`);
   if(g.length) return kasten('#dc2626', `⚠️ Bewertung unplausibel: ${escapeHtml(g.concat(sonder).join(' · '))} – vermutlich ein Datenfehler (Währung, ADR-Verhältnis oder veraltete Zahlen). Nicht danach handeln.`);
-  if(sonder.length) return kasten('#d97706', `⚠️ Kennzahl außerhalb des üblichen Bereichs: ${escapeHtml(sonder.join(' · '))} – meist eine Firma, die früher kaum Gewinn hatte (das Normal-KGV ist dann sehr hoch). Die Rendite-Schätzung ist hier nicht aussagekräftig.`);
+  if(sonder.length) return kasten('#d97706', `⚠️ Kennzahl außerhalb des üblichen Bereichs: ${escapeHtml(sonder.join(' · '))} – die Schätzung hängt an sehr hohem Gewinnwachstum oder an einem Normal-KGV aus Jahren mit kaum Gewinn. Als Richtwert ungeeignet.`);
   return '';
 }
 // ---- Durchblaettern (17.11.2026): Depot (Positionen nach Name), Watchlist, KI-Analysen ----

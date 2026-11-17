@@ -22,6 +22,7 @@
 // Solange der Ausbruch-Bot nicht eingetragen ist, gehen seine Nachrichten weiter an den Swing-Bot.
 // 'ict' (seit 30.10.2026): ICT-Swing (I2, 3 Monate Test); ohne eigenen Bot an den Swing-Bot.
 // 'levermann' (seit 01.11.2026): Levermann-US, monatlich (levermann-signale.php); ohne eigenen Bot an den Swing-Bot.
+// 'aktionaer' (seit 17.11.2026): Aktionaersrendite-US, monatlich (aktionaer-signale.php); ohne eigenen Bot an den Levermann-Bot.
 // 'dividenden' (seit 09.10.2026, statt iCal-Abo wie bei Parqet): dividenden-telegram.php, taeglich 08:00.
 // 'waechter' (seit 10.10.2026): capolio-waechter.php, stuendlich - meldet ausgefallene Datenquellen/Jobs.
 // 'buchungen', 'sicherheit', 'depot' (seit 10.10.2026, statt E-Mails): neue Buchungen aus IBKR/EA/Drive, Login- und
@@ -31,7 +32,7 @@ const TELEGRAM_CHANNELS = ['kursalarm' => 'Kursalarme', 'analysen' => 'Bewertung
 // Ersatz-Bot je Kanal (16.11.2026 an einer Stelle zusammengefasst): ohne eigenen Bot gehen die Nachrichten hierhin -
 // levermann-signale.php, swing-signale.php ($tgKanal) und capolio_melden() (Waechter) machen genau das. Die
 // Einrichtungsseite zeigt es an, statt "nicht eingerichtet" zu melden.
-const TELEGRAM_ERSATZ = ['ausbruch' => 'swing', 'ict' => 'swing', 'levermann' => 'swing',
+const TELEGRAM_ERSATZ = ['ausbruch' => 'swing', 'ict' => 'swing', 'levermann' => 'swing', 'aktionaer' => 'levermann',
     'buchungen' => 'waechter', 'sicherheit' => 'waechter', 'depot' => 'waechter'];
 // Kanal, ueber den tatsaechlich gesendet wird (eigener Bot, sonst Ersatz), oder null.
 function telegram_wirksamer_kanal($dataDir, $channel) {
