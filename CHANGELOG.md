@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.19 – 17.11.2026
+- Chart, Reiter Analyse: **offene Monats-Pivots** – Pivot eines Monats = (Hoch + Tief + Schluss) ÷ 3 des Vormonats; offen, solange der Kurs ihn seither nie berührt hat. Rot unter dem Kurs, grün darüber, je die 5 nächsten.
+
 ## 1.18 – 17.11.2026
 - Chart: Infozeile oben rechts – zeigt „Gewinndaten werden geladen …“ und danach, woher die Zahlen kommen (SEC oder Yahoo, welche Jahre, ADR, Umrechnung, Analystenschätzungen).
 

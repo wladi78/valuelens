@@ -52,14 +52,14 @@ const KI_EBENEN = [
   ['kz',     'KI-Kaufzonen'], ['sb', 'KI Strong Buy'], ['fv', 'KI Fair Value'], ['sr', 'Support/Widerstand'], ['ob', 'Order Blocks'],
   ['kauf',   'Käufe + Einstand'], ['fvl', 'Fair Value KGV 15'], ['npe', 'Normal-KGV'], ['divfl', 'Dividendenfläche'], ['cvr', 'Eigenes KGV'], ['por', 'Ausschüttungsquote %'], ['split', 'Splits'], ['divdekl', 'Dividendenmarken'],
   ['prog',   'Schätzung'], ['faecher', 'Prognose-Fächer'], ['rendite', 'Div.-Rendite %'], ['div3', '3 %-Linie'], ['divhist', 'Dividendenbalken'], ['rez', 'Rezessionen'],
-  ['struktur', 'Struktur HH/HL'], ['pd', 'Premium/Discount'], ['tiefs', 'Monatstiefs'], ['pivots', 'Pivots'], ['elder', 'Elder Impulse'], ['osz', 'Oszillatoren'],
+  ['struktur', 'Struktur HH/HL'], ['pd', 'Premium/Discount'], ['tiefs', 'Monatstiefs'], ['pivots', 'Pivots'], ['mpiv', 'Offene Monats-Pivots'], ['elder', 'Elder Impulse'], ['osz', 'Oszillatoren'],
 ];
 const KI_TABS = {
   zonen: {name:'Zonen',     an:['kz','sb','fv','sr','ob','kauf','fvl']},
   bewertung: {name:'Bewertung', an:['fvl','npe','divfl','prog','rez','kauf','rendite','fv','sb','split']},   // Faecher aus nach Vorlage (Uebersicht)
   fitness: {name:'Fitness', an:[]},   // Finanzielle Fitness + Finanzzahlen ohne Kurschart nach Vorlage "Fiscal fitness")
   div:   {name:'Dividende', an:['div3','divhist','rendite','kauf','divfl']},
-  analyse: {name:'Analyse', an:['ob','struktur','pd','tiefs','pivots','osz','kauf']},
+  analyse: {name:'Analyse', an:['ob','struktur','pd','tiefs','pivots','mpiv','osz','kauf']},
 };
 // Wendepunkte: Hoch/Tief, das n Kerzen links und rechts uebertrifft. Beschriftung gegenueber dem vorigen gleichen Typ:
 // HH/LH (hoeheres/tieferes Hoch), HL/LL (hoeheres/tieferes Tief).
@@ -1713,6 +1713,37 @@ async function chartZeichnenIntern(ctx, interval){
       linie(mitte, '#64748b', 'Gleichgewicht', 'strich');
       anaLeg.push(`<span><span style="display:inline-block;width:12px;height:10px;background:rgba(239,68,68,.25);vertical-align:middle;margin-right:4px;"></span>Premium ${kiNum(mitte)}–${kiNum(hoch)}</span>`,
         `<span><span style="display:inline-block;width:12px;height:10px;background:rgba(34,197,94,.25);vertical-align:middle;margin-right:4px;"></span>Discount ${kiNum(tief)}–${kiNum(mitte)} · Kurs ${kurs>=mitte?'im Premium':'im Discount'}</span>`);
+    }
+  }
+  // Offene Monats-Pivots (Nutzer 17.11.2026, Vorbild TradingView "Ghost Pivots"): Pivot eines Monats = (Hoch+Tief+Schluss)/3 des
+  // Vormonats, gilt im Monat danach. "Offen" = seit diesem Monat nie mehr beruehrt (alle Tiefs darueber bzw. alle Hochs darunter).
+  // Rot unter dem Kurs, gruen darueber; je Seite die 5 naechsten. Immer aus Monatskerzen, auch in der Wochen-/Tagesansicht.
+  if(E.mpiv){
+    let mk = interval==='1mo' ? j.kerzen : null;
+    if(!mk){ try{ const mj = await (await fetch('quote.php?ohlc=1&interval=1mo&range=max&symbols=' + encodeURIComponent(ctx.sym), {cache:'no-store'})).json(); mk = Array.isArray(mj.kerzen) ? mj.kerzen : []; } catch(e){ mk = []; } }
+    // _kiChart.chart wird erst nach dem Zeichnen gesetzt - nur abbrechen, wenn inzwischen ein ANDERER Chart offen ist
+    if(!(_kiChart && _kiChart.chart && _kiChart.chart!==chart) && mk.length > 2){
+      const n = mk.length, minL = new Array(n), maxH = new Array(n);
+      for(let i=n-1; i>=0; i--){ minL[i] = Math.min(mk[i][3], i<n-1 ? minL[i+1] : Infinity); maxH[i] = Math.max(mk[i][2], i<n-1 ? maxH[i+1] : -Infinity); }
+      const kursM = j.kerzen[j.kerzen.length-1][4], unten = [], oben = [];
+      for(let i=1; i<n; i++){
+        const pv = (mk[i-1][2] + mk[i-1][3] + mk[i-1][4]) / 3;
+        if(!(pv > 0)) continue;
+        if(minL[i] > pv && pv < kursM) unten.push({i, pv});
+        else if(maxH[i] < pv && pv > kursM) oben.push({i, pv});
+      }
+      const ende = zeiten[zeiten.length-1];
+      const zeichne = (o, farbe)=>{
+        const start = zeiten.find(z=>z >= mk[o.i][0]) || ende;
+        const titel = 'P ' + mk[o.i][0].slice(5,7) + '/' + mk[o.i][0].slice(0,4);
+        if(start >= ende){ linie(o.pv, farbe, titel, 'strich'); return; }
+        const s = chart.addLineSeries({color:farbe, lineWidth:1, lineStyle:LS.Dashed, priceLineVisible:false, lastValueVisible:true, crosshairMarkerVisible:false, title:titel});
+        s.setData([{time:start, value:o.pv}, {time:ende, value:o.pv}]);
+      };
+      unten.sort((a,b)=>b.pv-a.pv).slice(0,5).forEach(o=>zeichne(o, '#dc2626'));
+      oben.sort((a,b)=>a.pv-b.pv).slice(0,5).forEach(o=>zeichne(o, '#16a34a'));
+      anaLeg.push(`<span><span style="display:inline-block;width:14px;border-top:2px dashed #dc2626;vertical-align:middle;margin-right:4px;"></span>Offene Monats-Pivots unter dem Kurs: ${unten.length}${unten.length>5?' (5 nächste gezeigt)':''}</span>`,
+        `<span><span style="display:inline-block;width:14px;border-top:2px dashed #16a34a;vertical-align:middle;margin-right:4px;"></span>darüber: ${oben.length}${oben.length>5?' (5 nächste gezeigt)':''}</span>`);
     }
   }
   // Oszillatoren in eigenen, zeitgleich mitlaufenden Feldern unter dem Chart: MACD (12/26/9) und Williams %R (14)
