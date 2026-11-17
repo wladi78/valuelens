@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.18 – 17.11.2026
+- Chart: Infozeile oben rechts – zeigt „Gewinndaten werden geladen …“ und danach, woher die Zahlen kommen (SEC oder Yahoo, welche Jahre, ADR, Umrechnung, Analystenschätzungen).
+
 ## 1.17 – 17.11.2026
 - Bewertung: Alphabet wieder mit allen Jahren seit 2013 (Aktienzahl aus Gewinn und Gewinn je Aktie, wenn die SEC sie nicht direkt liefert); Firmen ohne SEC-Zahlen der letzten zwei Jahre (z. B. Brookfield Asset Management) nehmen die Yahoo-Zahlen.
 

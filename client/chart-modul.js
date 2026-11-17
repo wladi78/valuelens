@@ -685,6 +685,41 @@ function kiScoreNetz(f, g, pkt){
 // Legende unter dem Chart. Faengt die Titel aller Serien und Preislinien ab und baut daraus die Legende (#kiFastLegende).
 // Kennzahlen-Box ("Graph Key" nach Vorlage im Bewertungs-Reiter rechts neben den Hauptchart (Nutzer 12.11.2026: Seite ist
 // schmaler, rechts ist Platz). Chart wird 280 px schmaler; FY-Tabelle, Legende und Prognose bleiben darunter.
+// Infozeile Daten/Quelle (Nutzer 17.11.2026: "Die Daten werden geladen ... und dann wo: Yahoo/SEC") - oben rechts ueber der
+// Kennzahlen-Spalte; ohne Spalte (andere Reiter, schmales Fenster) als Zeile direkt ueber dem Chart.
+function kiDatenStatus(html){
+  const cb = document.getElementById('kiChartBox'); if(!cb) return;
+  let el = document.getElementById('kiDatenStatus');
+  if(!el){ el = document.createElement('div'); el.id = 'kiDatenStatus'; el.style.cssText = 'font-size:11.5px;line-height:1.45;color:var(--text-dim);border:1px solid var(--border);border-radius:8px;padding:4px 8px;background:var(--surface-hover);box-sizing:border-box;z-index:3;'; }
+  el.innerHTML = html;
+  kiDatenStatusLage(el);   // neues Element ist noch nicht im Dokument - direkt uebergeben
+}
+function kiDatenStatusLage(neu){
+  const el = neu || document.getElementById('kiDatenStatus'), cb = document.getElementById('kiChartBox'); if(!el || !cb) return;
+  const eltern = cb.parentElement, side = document.getElementById('kiGraphKey');
+  if(side){
+    if(el.parentElement !== eltern) eltern.appendChild(el);
+    el.style.position = 'absolute'; el.style.right = side.style.right || '0px'; el.style.width = '268px'; el.style.marginBottom = '';
+    el.style.top = Math.max(0, cb.offsetTop - el.offsetHeight - 6) + 'px';
+  } else {
+    if(el.nextSibling !== cb) eltern.insertBefore(el, cb);
+    el.style.position = 'static'; el.style.width = ''; el.style.marginBottom = '4px';
+  }
+}
+function kiQuelleText(rh, fxHinweis){
+  if(!rh || !rh.quelle) return '<b>Gewinne:</b> keine Daten (weder SEC noch Yahoo) · <b>Kurse:</b> Yahoo';
+  const r = (rh.reihen.operativ && rh.reihen.operativ.length ? rh.reihen.operativ : rh.reihen.gaap) || [];
+  const von = r.length ? r[0].date.slice(0,4) : '', bis = r.length ? r[r.length-1].date.slice(0,4) : '';
+  const q = {sec:'SEC 10-K', 'sec-ifrs':'SEC 20-F (IFRS)', yahoo:'Yahoo'}[rh.quelle] || rh.quelle;
+  const teile = [`<b>Gewinne:</b> ${escapeHtml(q)}${r.length ? `, ${von}–${bis} (${r.length} Jahre)` : ''}`];
+  if(rh.secVeraltet) teile.push(`SEC endet ${rh.secVeraltet} → Yahoo`);
+  if(rh.firma) teile.push(escapeHtml(rh.firma));
+  if(rh.adrFaktor && rh.adrFaktor != 1) teile.push(`je ADR (${kiNum(rh.adrFaktor,1)} Aktien)`);
+  if(fxHinweis) teile.push(`umgerechnet ${escapeHtml(String(rh.waehrung||''))} → Kurswährung`);
+  teile.push('<b>Kurse:</b> Yahoo');
+  const s = (rh.schaetzung||[]); if(s.length) teile.push(`<b>Schätzungen:</b> Yahoo, ${s.map(x=>x.analysten).filter(Boolean).join('/')} Analysten`);
+  return 'ℹ️ ' + teile.join(' · ');
+}
 function kiGraphKeySetzen(key){
   const cb = document.getElementById('kiChartBox');
   const altKey = document.getElementById('kiGraphKey'); if(altKey){ if(altKey._ro) altKey._ro.disconnect(); altKey.remove(); }
@@ -700,10 +735,11 @@ function kiGraphKeySetzen(key){
   // Kommt oberhalb des Charts spaeter etwas dazu (Warnung, Kacheln, Alarm-Leiste), rutscht der Chart nach unten - die Spalte
   // muss mitwandern, sonst liegt sie ueber den Haekchen (Nutzer 17.11.2026, Block/XYZ).
   if(window.ResizeObserver){
-    const lage = ()=>{ side.style.top = cb.offsetTop + 'px'; side.style.maxHeight = Math.max(340, unten.offsetTop + unten.offsetHeight - cb.offsetTop) + 'px'; };
+    const lage = ()=>{ side.style.top = cb.offsetTop + 'px'; side.style.maxHeight = Math.max(340, unten.offsetTop + unten.offsetHeight - cb.offsetTop) + 'px'; kiDatenStatusLage(); };
     const ro = new ResizeObserver(lage); ro.observe(eltern); const kk = document.getElementById('kiChartKacheln'); if(kk) ro.observe(kk);
     side._ro = ro;
   }
+  kiDatenStatusLage();
   // Chart ist jetzt schmaler - LWC behaelt den rechten Rand und schneidet links ab -> Zeitraum neu setzen
   [60, 300, 1000].forEach(ms=>setTimeout(()=>{ try{ kiZeitraumAnwenden(); } catch(e){} }, ms));   // autoSize passt die Breite verzoegert an
 }
@@ -1077,8 +1113,9 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
     rez.setData(zeiten.filter(t=>US_REZESSIONEN.some(([a,b])=>t.slice(0,7)>=a && t.slice(0,7)<=b)).map(t=>({time:t, value:1})));
   }
   box.innerHTML = '<span class="muted" style="font-size:12px;">Lade Gewinne je Aktie für Fair Value und Kennzahlen …</span>';
+  kiDatenStatus('⏳ Gewinndaten werden geladen … (SEC, sonst Yahoo – beim ersten Aufruf bis zu 40 s)');
   let f, rh;
-  try{ [f, rh] = await Promise.all([kiBewDaten(j.symbol), kiReihen(j.symbol).catch(()=>null)]); } catch(e){ box.innerHTML = '<span class="muted">Gewinndaten nicht geladen.</span>'; return; }
+  try{ [f, rh] = await Promise.all([kiBewDaten(j.symbol), kiReihen(j.symbol).catch(()=>null)]); } catch(e){ box.innerHTML = '<span class="muted">Gewinndaten nicht geladen.</span>'; kiDatenStatus('⚠️ Gewinndaten nicht geladen · <b>Kurse:</b> Yahoo'); return; }
   if(!_kiChart || _kiChart.chart!==chart) return;
   // Berichtswaehrung != Kurswaehrung (China-ADRs in Yuan, IFRS-Melder in Euro, London in Pence): Werte je Geschaeftsjahr mit
   // dem Wechselkurs am Jahresende umrechnen (Yahoo-Devisenkurse, Monatsschluss)
@@ -1100,6 +1137,7 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
       const umr = {}; Object.entries(rh.reihen).forEach(([k,a])=>umr[k] = (a||[]).map(e=>({date:e.date, v:e.v*100}))); rh = {...rh, reihen:umr}; fxHinweis = ' · Pfund in Pence umgerechnet';
     }
   }
+  if(_kiChart && _kiChart.chart===chart) kiDatenStatus(kiQuelleText(rh, fxHinweis));
   let basis = _kiBasis;
   const sektor = String((_kiChart.ctx.pos && (_kiChart.ctx.pos.sector||_kiChart.ctx.pos.sektor)) || _kiChart.ctx.sektor || (_kiChart.ctx.analyse && _kiChart.ctx.analyse.ddb && _kiChart.ctx.analyse.ddb.sector) || '');
   let autoHinweis = '';
@@ -1495,7 +1533,8 @@ function kiKopfKompakt(){
 }
 window.addEventListener('resize', ()=>{ clearTimeout(kiKopfKompakt._t); kiKopfKompakt._t = setTimeout(kiKopfKompakt, 150); });
 async function chartZeichnen(ctx, interval){
-  try{ await chartZeichnenIntern(ctx, interval); kiBlaetterAnzeige(); kiKopfKompakt(); }
+  try{ await chartZeichnenIntern(ctx, interval); kiBlaetterAnzeige(); kiKopfKompakt();
+    if(_kiTab !== 'bewertung') kiDatenStatus('ℹ️ <b>Kurse:</b> Yahoo' + (_kiTab==='fitness' ? ' · <b>Kennzahlen:</b> SEC-Jahresberichte, sonst Yahoo' : (_kiTab==='zonen' && ctx.analyse ? ' · <b>Zonen:</b> KI-Analyse vom ' + escapeHtml(String(ctx.analyse.datum||'')) : ''))); }
   catch(e){ console.error('Chart', e); const i = document.getElementById('kiChartInfo'); if(i) i.textContent = 'Chart-Fehler: ' + e.message; }
 }
 async function chartZeichnenIntern(ctx, interval){
