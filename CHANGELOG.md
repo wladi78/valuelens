@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.12 – 17.11.2026
+- Chart: Aktien **durchblättern** – oben „Meine Käufe“ oder „Watchlist“ wählen und mit ◀ ▶ (oder den Pfeiltasten links/rechts) Aktie für Aktie durchgehen; der Zähler zeigt die Stelle in der Liste.
+
 ## 1.11 – 16.11.2026
 - Telegram: Kanäle ohne eigenen Bot zeigen „↪ über …-Bot“ statt „nicht eingerichtet“; die Testnachricht nimmt denselben Weg wie die echten Meldungen.
 - Kursalarme: Ist für ein Konto kein Telegram möglich, kommt der Alarm per E-Mail statt gar nicht.

@@ -196,6 +196,15 @@ function kiChartModal(){
       <b id="kiChartTitel" style="font-size:15px;"></b>
       <input id="kiChartSuche" list="kiChartSymbole" placeholder="Andere Aktie: Symbol oder Name …" title="Jede Aktie: Depot, KI-Analysen, Watchlist oder ein beliebiges Yahoo-Symbol (z. B. KO, SIE.DE)" style="width:220px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:12.5px;">
       <datalist id="kiChartSymbole"></datalist>
+      <!-- Durchblaettern (Nutzer 17.11.2026: "schnell durch das Depot, jede Aktie nach und nach per Pfeil") - auch Pfeiltasten -->
+      <span style="display:inline-flex;align-items:center;gap:4px;" title="Liste waehlen und mit ◀ ▶ (oder den Pfeiltasten) Aktie fuer Aktie durchgehen">
+        <select id="kiBlaetterQuelle" style="padding:4px 6px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:12.5px;">
+          <option value="depot">Meine Käufe</option><option value="watchlist">Watchlist</option>
+        </select>
+        <button type="button" class="btn ghost" data-ki-blaettern="-1" title="Vorherige Aktie (Pfeil links)" style="padding:4px 10px;">◀</button>
+        <span id="kiBlaetterPos" class="muted" style="font-size:12px;min-width:46px;text-align:center;">–</span>
+        <button type="button" class="btn ghost" data-ki-blaettern="1" title="Naechste Aktie (Pfeil rechts)" style="padding:4px 10px;">▶</button>
+      </span>
       <span style="flex:1;"></span>
       ${Object.entries(KI_TABS).map(([k,t])=>`<button type="button" class="range-btn" data-ki-tab="${k}">${t.name}</button>`).join('')}
       <span style="width:10px;"></span>
@@ -252,10 +261,14 @@ function kiChartModal(){
   const suche = document.getElementById('kiChartSuche');
   const oeffne = ()=>{ const v = suche.value.trim(); if(!v) return; suche.value = ''; kiChartSymbolOeffnen(v); };
   suche.addEventListener('change', oeffne);
+  const bq = document.getElementById('kiBlaetterQuelle');
+  try{ const g = localStorage.getItem('capolioBlaetterQuelle'); if(g) bq.value = g; }catch(e){}
+  bq.addEventListener('change', ()=>{ try{ localStorage.setItem('capolioBlaetterQuelle', bq.value); }catch(e){} kiBlaetterAnzeige(); });
   suche.addEventListener('keydown', e=>{ if(e.key==='Enter') oeffne(); });
   o.addEventListener('click', e=>{
     if(e.target===o || e.target.closest('[data-ki-chart-zu]')){ kiChartSchliessen(); return; }
     if(!_kiChart) return;
+    const bl = e.target.closest('[data-ki-blaettern]'); if(bl){ kiBlaettern(Number(bl.dataset.kiBlaettern)); return; }
     if(e.target.closest('[data-ki-neu-tab]')){
       const c = _kiChart.ctx; const ziel = c.pos ? 'pos:'+c.posSym : (c.analyse ? 'ki:'+c.analyse.ticker : 'sym:'+c.sym);
       window.open(location.pathname + '#chart=' + encodeURIComponent(ziel) + '&tab=' + _kiTab + '&iv=' + (_kiChart.interval||'1mo'), '_blank', 'noopener');
@@ -525,6 +538,56 @@ function renderAktienChartSeite(){
     + (wl.length ? `<details style="margin-top:10px;"><summary class="muted" style="font-size:12px;cursor:pointer;">Watchlist (${wl.length}) – aufklappen</summary><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${wl.map(w=>knopf(w.ticker||w.symbol, w.name)).join('')}</div></details>` : '');
 }
 // Beliebige Aktie im Chart oeffnen: eigene Position (mit Kaeufen), sonst KI-Analyse falls vorhanden, sonst nur Kurs + Bewertung
+// ---- Durchblaettern (17.11.2026): Depot (Positionen nach Name), Watchlist, KI-Analysen ----
+// Jeder Eintrag: {sym: was kiChartSymbolOeffnen bekommt, keys: alle Schreibweisen zum Wiederfinden}.
+let _kiBlaetterLaeuft = false;
+async function kiBlaetterListe(quelle){
+  const gross = x => String(x||'').toUpperCase();
+  if(quelle === 'watchlist'){
+    return (data.watchlist||[]).filter(w=>w.ticker||w.symbol).map(w=>({sym: w.ticker||w.symbol, name: w.name||'', keys: [w.ticker, w.symbol, w.displaySymbol].filter(Boolean).map(gross)}));
+  }
+  if(quelle === 'ki'){
+    let liste = _ki.analysen || [];
+    if(!_ki.geladen && !liste.length){
+      if(!kiBlaetterListe._ki){ try{ const j = await (await fetch('ki-analysen-api.php?action=liste', {cache:'no-store'})).json(); kiBlaetterListe._ki = j.analysen || []; }catch(e){ kiBlaetterListe._ki = []; } }
+      liste = kiBlaetterListe._ki;
+    }
+    const gesehen = new Set();
+    return liste.filter(a=>a.ticker && !gesehen.has(a.ticker) && gesehen.add(a.ticker)).sort((a,b)=>String(a.ticker).localeCompare(String(b.ticker)))
+      .map(a=>({sym: a.ticker, name: a.name||'', keys: [a.ticker, kiSymbol(a)].map(gross)}));
+  }
+  return (data.positions||[]).filter(p=>p.ticker && !(Number(p.shares) <= 0)).sort((a,b)=>String(a.name||a.ticker).localeCompare(String(b.name||b.ticker), 'de'))
+    .map(p=>({sym: p.ticker, name: p.name||'', keys: [p.ticker, p.displaySymbol, p.symbol].filter(Boolean).map(gross)}));
+}
+function kiBlaetterIndex(liste){
+  const c = _kiChart && _kiChart.ctx; if(!c) return -1;
+  const such = [c.sym, c.posSym, c.analyse && c.analyse.ticker].filter(Boolean).map(x=>String(x).toUpperCase());
+  return liste.findIndex(e=>e.keys.some(k=>such.includes(k)));
+}
+async function kiBlaetterAnzeige(){
+  const el = document.getElementById('kiBlaetterPos'); if(!el) return;
+  const q = document.getElementById('kiBlaetterQuelle')?.value || 'depot';
+  const liste = await kiBlaetterListe(q);
+  const i = kiBlaetterIndex(liste);
+  el.textContent = liste.length ? ((i >= 0 ? i+1 : '–') + ' / ' + liste.length) : 'leer';
+}
+async function kiBlaettern(richtung){
+  if(_kiBlaetterLaeuft) return;
+  const q = document.getElementById('kiBlaetterQuelle')?.value || 'depot';
+  const liste = await kiBlaetterListe(q);
+  if(!liste.length){ toast('Die Liste „' + ({depot:'Depot', watchlist:'Watchlist', ki:'KI-Analysen'}[q]||q) + '“ ist leer.'); return; }
+  const i = kiBlaetterIndex(liste);
+  const n = i < 0 ? (richtung > 0 ? 0 : liste.length-1) : (i + richtung + liste.length) % liste.length;
+  _kiBlaetterLaeuft = true;
+  try{ await kiChartSymbolOeffnen(liste[n].sym); } finally{ _kiBlaetterLaeuft = false; }
+}
+document.addEventListener('keydown', e=>{
+  if(e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if(!document.getElementById('kiChartOverlay')?.classList.contains('show') || !_kiChart) return;
+  if(e.target && e.target.closest && e.target.closest('input,select,textarea,[contenteditable="true"]')) return;
+  if(document.querySelector('.modal-overlay.show:not(#kiChartOverlay)')) return;
+  e.preventDefault(); kiBlaettern(e.key === 'ArrowRight' ? 1 : -1);
+});
 async function kiChartSymbolOeffnen(eingabe){
   const roh = String(eingabe).trim(); const v = roh.toUpperCase();
   const pos = (data.positions||[]).find(p=>String(p.ticker||'').toUpperCase()===v || String(p.displaySymbol||'').toUpperCase()===v || String(p.name||'').toUpperCase()===v);
@@ -1369,7 +1432,7 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
     kiPerfZeichnen(j, pkt, FVR, npe); });
 }
 async function chartZeichnen(ctx, interval){
-  try{ await chartZeichnenIntern(ctx, interval); }
+  try{ await chartZeichnenIntern(ctx, interval); kiBlaetterAnzeige(); }
   catch(e){ console.error('Chart', e); const i = document.getElementById('kiChartInfo'); if(i) i.textContent = 'Chart-Fehler: ' + e.message; }
 }
 async function chartZeichnenIntern(ctx, interval){
