@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.23 – 17.11.2026
+- Dividenden: sechster Reiter **Dividendenschätzungen** – Fortschreibung der heutigen Dividende mit dem eigenen Wachstum (mit Spanne) und Ausschüttungsquote auf die Gewinnschätzungen der Analysten.
+
 ## 1.22 – 17.11.2026
 - Dividenden: Jahre mit Erhöhung in Folge und angekündigte Dividende mit Zahltag aus einer zweiten freien Quelle (z. B. Coca-Cola 64 Jahre); bei REITs Ausschüttungsquote auf den operativen Cashflow; Dividenden auch für Aktien ohne US-Börsenberichte.
 - Chart Analyse: Beschriftungen dicht beieinanderliegender Linien ausgedünnt.

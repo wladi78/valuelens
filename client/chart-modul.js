@@ -867,6 +867,7 @@ function kiFitPeriodeBinden(el, sym){ el.querySelectorAll('[data-ki-fit-q]').for
 // Ohne deren Noten (A-F, Premium) und ohne Branchenvergleich - beides gibt es frei nicht. Zahlungen und Kurse: Yahoo
 // (Sonderausschuettungen herausgefiltert wie im Chart); Gewinn, Cashflow, Schulden: SEC-Jahresberichte (fitness.php).
 let _kiDivAnsicht = 'uebersicht';
+const _kiDivEps = {};   // Gewinnschaetzungen (Yahoo, ueber bewertung-reihen.php) je Symbol fuer den Reiter Dividendenschaetzungen
 // stockanalysis.com (dividend-history.php, frei): Jahre in Folge erhoeht, Zahl-/Stich-/Ankuendigungstag. Yahoo kennt nur den Ex-Tag
 // und hat bei alten Titeln Luecken (KO 23 statt 63 Jahre in Folge). Je Symbol einmal je Sitzung; Fehler = keine Zusatzdaten.
 const _kiDivHist = {};
@@ -886,7 +887,7 @@ function kiDividendenSeite(el, d, sym){
   const reit = kiIstReit(_kiChart && _kiChart.ctx);
   const kopf = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
       <button type="button" class="range-btn" data-ki-fit-zurueck="1">← Fitness</button><b style="font-size:15px;">Dividenden</b>
-      ${[['uebersicht','Übersicht'],['rendite','Div.-Rendite'],['wachstum','Dividendenwachstum'],['sicherheit','Dividendensicherheit'],['historie','Dividendenhistorie']].map(([k,n])=>`<button type="button" class="range-btn${_kiDivAnsicht===k?' active':''}" data-ki-div-ans="${k}">${n}</button>`).join('')}
+      ${[['uebersicht','Übersicht'],['rendite','Div.-Rendite'],['wachstum','Dividendenwachstum'],['sicherheit','Dividendensicherheit'],['historie','Dividendenhistorie'],['schaetzung','Dividendenschätzungen']].map(([k,n])=>`<button type="button" class="range-btn${_kiDivAnsicht===k?' active':''}" data-ki-div-ans="${k}">${n}</button>`).join('')}
       <span class="muted" style="font-size:11.5px;">Zahlungen und Kurse: Yahoo · Zahltage und Jahre in Folge: stockanalysis.com${H===undefined?' (lädt …)':''} · Gewinn, Cashflow, Schulden: SEC</span></div>`;
   const binden = ()=>{
     el.querySelector('[data-ki-fit-zurueck]')?.addEventListener('click', ()=>{ _kiFitFeld = 'fcfdiv'; kiFitnessZeichnen(sym); });
@@ -979,6 +980,36 @@ function kiDividendenSeite(el, d, sym){
     el.innerHTML = kopf + html; binden();
     if(window.Chart){ _kiFitChart = new Chart(document.getElementById('kiDivChart'), {type:'bar', data:{labels:ys.map(String), datasets:[{label:'Dividende je Aktie (Kalenderjahr)', data:ys.map(y=>jeJahr[y]), backgroundColor:'#7c3aed'}]},
       options:{responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, ticks:{callback:v=>kiNum(v,2)}}}}}); }
+    return;
+  } else if(_kiDivAnsicht === 'schaetzung'){
+    // Seeking Alpha zeigt hier Konsens-Dividendenschaetzungen der Analysten - die gibt es frei nirgends (Yahoo hat nur Gewinn-
+    // schaetzungen). Darum: eigene Fortschreibung der heutigen Rate mit dem eigenen Wachstum (Mitte 5 J., Spanne min/max aus
+    // 1/3/5/10 J.) und daneben die Gewinnschaetzungen der Analysten (Yahoo) als Deckungs-Pruefung. Nutzer 17.11.2026.
+    const symU = String(sym).toUpperCase();
+    if(!(symU in _kiDivEps)){ _kiDivEps[symU] = null; kiReihen(sym).then(rh=>{ _kiDivEps[symU] = (rh && rh.schaetzung) || []; if(document.getElementById('kiFitness')===el && _kiFitFeld==='dividenden') kiDividendenSeite(el, d, sym); }).catch(()=>{ _kiDivEps[symU] = []; }); }
+    const epsS = _kiDivEps[symU];
+    const gs = [1,3,5,10].map(cagr).filter(v=>v!=null && isFinite(v));
+    const g5 = cagr(5) ?? (gs.length ? gs.reduce((a,b)=>a+b,0)/gs.length : null);
+    const gMin = gs.length ? Math.min(...gs) : null, gMax = gs.length ? Math.max(...gs) : null;
+    const zeilen = [1,2,3].map(n=>{
+      const y = jahrNow + n - 1;
+      const mitte = g5!=null ? fwd*Math.pow(1+g5/100, n-1) : null;
+      const tief = gMin!=null ? fwd*Math.pow(1+gMin/100, n-1) : null, hoch = gMax!=null ? fwd*Math.pow(1+gMax/100, n-1) : null;
+      const e = (epsS||[]).find(x=>String(x.ende||'').slice(0,4)===String(y));
+      return {y, mitte, tief, hoch, eps: e ? e.eps : null, anz: e ? e.analysten : null};
+    });
+    html = `<div class="panel" style="padding:10px 12px;margin-bottom:10px;"><div style="font-weight:700;font-size:12px;letter-spacing:.04em;margin-bottom:6px;">DIVIDENDEN-FORTSCHREIBUNG (eigene Rechnung, keine Analystenschätzung)</div>`
+      + `<table style="width:100%;font-size:12.5px;border-collapse:collapse;"><thead><tr style="text-align:right;"><th style="text-align:left;padding:4px 8px;">Jahr</th><th style="padding:4px 8px;">Dividende (Mitte)</th><th style="padding:4px 8px;">Rendite heute</th><th style="padding:4px 8px;">Tief</th><th style="padding:4px 8px;">Hoch</th><th style="padding:4px 8px;">Gewinn je Aktie (Analysten)</th><th style="padding:4px 8px;">Ausschüttungsquote</th></tr></thead><tbody>`
+      + zeilen.map(z=>{ const q = z.eps>0 && z.mitte ? z.mitte/z.eps*100 : null;
+          return `<tr style="text-align:right;border-top:1px solid var(--border);"><td style="text-align:left;padding:4px 8px;">${z.y}${z.y===jahrNow?' (laufend)':' (E)'}</td><td style="padding:4px 8px;font-weight:700;">${z.mitte!=null?kiNum(z.mitte,2):'–'}</td><td style="padding:4px 8px;">${z.mitte!=null && kurs ? pz(z.mitte/kurs*100) : '–'}</td><td style="padding:4px 8px;">${z.tief!=null?kiNum(z.tief,2):'–'}</td><td style="padding:4px 8px;">${z.hoch!=null?kiNum(z.hoch,2):'–'}</td><td style="padding:4px 8px;">${z.eps!=null ? kiNum(z.eps,2)+(z.anz?` <span class="muted">(${z.anz})</span>`:'') : (epsS===null ? 'lädt …' : '–')}</td><td style="padding:4px 8px;color:${q==null?'':(q<=60?'#16a34a':(q<=85?'#d97706':'#dc2626'))};">${pz(q)}</td></tr>`; }).join('')
+      + `</tbody></table><div class="muted" style="font-size:11px;margin-top:6px;">Basis: heutige Rate ${kiNum(fwd,2)} (letzte Zahlung × ${freq}), fortgeschrieben mit ${g5!=null?kiNum(g5,1)+' %':'–'} p. a. (5 J.); Spanne ${gMin!=null?kiNum(gMin,1):'–'} bis ${gMax!=null?kiNum(gMax,1):'–'} % (1/3/5/10 J.). Gewinnschätzungen: Analystenkonsens bei Yahoo. Konsens-Dividendenschätzungen gibt es aus freien Quellen nicht.</div></div>`
+      + `<div style="height:240px;"><canvas id="kiDivChart"></canvas></div>`;
+    el.innerHTML = kopf + html; binden();
+    const ist = jahre.slice(-5);
+    if(window.Chart){ _kiFitChart = new Chart(document.getElementById('kiDivChart'), {type:'bar', data:{labels:[...ist.map(String), ...zeilen.map(z=>z.y+' (E)')],
+      datasets:[{label:'Tatsächliche Dividende', data:[...ist.map(y=>jeJahr[y]), ...zeilen.map(()=>null)], backgroundColor:'#7c3aed'},
+                {label:'Fortschreibung', data:[...ist.map(()=>null), ...zeilen.map(z=>z.mitte)], backgroundColor:'rgba(124,58,237,.35)'}]},
+      options:{responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10}}}, scales:{x:{stacked:true}, y:{stacked:true, beginAtZero:true, ticks:{callback:v=>kiNum(v,2)}}}}}); }
     return;
   } else if(_kiDivAnsicht === 'sicherheit'){
     const zj = sec.slice(0, 10);
