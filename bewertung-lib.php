@@ -100,6 +100,7 @@ function bewertung_reihen($symbol, $neu = false) {
             'steuer'  => ['us-gaap' => ['IncomeTaxExpenseBenefit'], 'ifrs-full' => ['IncomeTaxExpenseContinuingOperations']],
             'ocf'     => ['us-gaap' => ['NetCashProvidedByUsedInOperatingActivities', 'NetCashProvidedByUsedInOperatingActivitiesContinuingOperations'], 'ifrs-full' => ['CashFlowsFromUsedInOperatingActivities']],
             'capex'   => ['us-gaap' => ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsForCapitalExpenditures'], 'ifrs-full' => ['PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities', 'PurchaseOfPropertyPlantAndEquipment']],
+            'gewinn'  => ['us-gaap' => ['NetIncomeLoss'], 'ifrs-full' => ['ProfitLossAttributableToOwnersOfParent']],
         ];
         $waehr = null;
         // Vorgaenger-Firmen mit eigener SEC-Nummer (17.11.2026, BLK: BlackRock meldet seit dem Holding-Umbau 2024 unter einer neuen
@@ -146,6 +147,17 @@ function bewertung_reihen($symbol, $neu = false) {
         $beteil = $hole('beteil'); $amort = $hole('amort'); $restr = $hole('restr'); $sbc = $hole('sbc'); $vorSteuerAlle = $hole('vorSt'); $steuer = $hole('steuer'); $capex = $hole('capex');
         $vorSteuer = $vorSteuerAlle;
         $epsJ = $hole('eps', 'jeAktie');
+        // Aktienzahl fehlt fuer einzelne Jahre (GOOG 17.11.2026: Alphabet meldet sie bis 2021 nur je Aktiengattung -> Reihe "operativ"
+        // nur 2022-2025). Dann Gewinn / verwaesserter Gewinn je Aktie; Einreichdatum vom EPS-Wert, damit die Split-Bereinigung unten greift.
+        if ($epsJ) {
+            $gewinnJ = $hole('gewinn');
+            foreach ($epsJ as $d => $e) {
+                if (isset($aktien[$d]) || abs($e) < 0.01 || empty($gewinnJ[$d]) || $gewinnJ[$d] / $e <= 0) continue;
+                $aktien[$d] = $gewinnJ[$d] / $e;
+                $GLOBALS['br_filed']['aktien'][$d] = $GLOBALS['br_filed']['eps'][$d] ?? '';
+            }
+            ksort($aktien);
+        }
         if ($aktien || $epsJ) {
             $out['quelle'] = $tax === 'ifrs-full' ? 'sec-ifrs' : 'sec';
             $out['waehrung'] = $waehr ?: 'USD';
@@ -179,7 +191,7 @@ function bewertung_reihen($symbol, $neu = false) {
     if ($out['quelle']) {
         $letzt = 0;
         foreach (['operativ', 'gaap'] as $r) foreach ($out['reihen'][$r] as $e) $letzt = max($letzt, (int) substr($e['date'], 0, 4));
-        if ($letzt < (int) date('Y') - 3) {
+        if ($letzt < (int) date('Y') - 2) {   // 17.11.2026 von 3 auf 2 (BAM: Reihe endet 2023)
             $out['secVeraltet'] = $letzt;
             $out['quelle'] = null; $out['waehrung'] = null; $out['steuersatz'] = null; $out['firma'] = null;
             $out['reihen'] = ['gaap' => [], 'operativ' => [], 'fcf' => [], 'ocf' => [], 'sbc' => []];
