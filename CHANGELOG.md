@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.21 – 17.11.2026
+- Fitness: neuer Bereich **Dividenden** mit Übersicht, Dividendenrendite (je Jahr, Rendite auf Einstand), Dividendenwachstum (1/3/5/10 J.), Dividendensicherheit (Ausschüttungsquoten, Verschuldung) und Dividendenhistorie.
+- „Erhöhungen in Folge“ zählt genauer (z. B. McCormick 39 statt 27 Jahre).
+
 ## 1.20 – 17.11.2026
 - Chart Analyse: Pivots, Tiefs und Order Block mit kleiner Beschriftung im Chart statt an der Preisachse (nichts überlappt mehr); rechts etwas Freiraum.
 - Fitness: Aktienzahl in falscher Einheit wird erkannt, fehlende Jahre aus der Aktienzahl zum Jahresende ergänzt (z. B. Hershey: Free Cashflow je Aktie wieder vollständig).

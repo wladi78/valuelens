@@ -663,8 +663,11 @@ function kiDivKennzahlen(divs, kerzen){
   if(!jahre.length) return null;
   const letzt = jahre[jahre.length-1];
   const cagr = n=>{ const a = jeJahr[letzt-n], e = jeJahr[letzt]; return (a>0 && e>0) ? (Math.pow(e/a, 1/n)-1)*100 : null; };
+  // Erhoehungen in Folge nach der hoechsten Einzelzahlung je Jahr, nicht nach der Jahressumme (17.11.2026, MKC: 1997 fielen fuenf
+  // Zahlungen ins Kalenderjahr -> 1998 sah wie eine Senkung aus, 27 statt 39 Jahre)
+  const maxJahr = {}; divs.forEach(([d,b])=>{ const y = +String(d).slice(0,4); if(y<jahrJetzt) maxJahr[y] = Math.max(maxJahr[y]||0, Number(b)); });
   let folge = 0;
-  for(let y=letzt; jeJahr[y-1]!=null && jeJahr[y] > jeJahr[y-1]*1.0001; y--) folge++;
+  for(let y=letzt; maxJahr[y-1]!=null && (maxJahr[y] > maxJahr[y-1]*1.0001 || jeJahr[y] > jeJahr[y-1]*1.0001); y--) folge++;   // Summe ODER Einzelzahlung gestiegen
   const schlussJahr = y=>{ const k = kerzen.filter(x=>+x[0].slice(0,4)===y); return k.length ? k[k.length-1][4] : null; };
   const renditen = [];
   for(let y=letzt-4; y<=letzt; y++){ const c = schlussJahr(y); if(jeJahr[y] && c) renditen.push(jeJahr[y]/c*100); }
@@ -852,6 +855,7 @@ const KI_FIT_FELDER = [
   ['roic', 'Rendite auf investiertes Kapital', 'Return on Invested Capital', '%', y=>[['ROIC', y.betrieb!=null && ((y.ek||0)+(y.schulden||0))>0 ? y.betrieb*(y._f||1)*(1-(y.steuersatz!=null ? Math.min(0.35, Math.max(0.1, y.steuersatz)) : 0.21))/((y.ek||0)+(y.schulden||0))*100 : null, '#7c3aed']]],
   ['eigen', 'Eigene Grafik', 'bis 3 Kennzahlen frei wählbar', '', y=>_kiFitEigen.map((k,i)=>{ const z = KI_FIT_KATALOG.find(x=>x[0]===k) || KI_FIT_KATALOG[0]; const v = z[2](y); return [z[1], v, ['#2563eb','#ea580c','#16a34a'][i], z[3]]; })],
   ['tabelle', 'Alle Jahreszahlen (Tabelle)', 'GuV, Cashflow, Bilanz', 'Mio.', y=>[]],
+  ['dividenden', 'Dividenden (Übersicht, Rendite, Wachstum, Sicherheit, Historie)', 'nach Vorlage Seeking Alpha, ohne deren Noten', '', y=>[]],
 ];
 // Wie Vorlage "Financials" (dort Premium): alle Jahreszahlen untereinander mit Mini-Verlauf und CAGR, neueste Jahre links
 function kiFitPeriodeKnopf(d){
@@ -859,6 +863,124 @@ function kiFitPeriodeKnopf(d){
   return `<span style="margin-left:6px;"></span><button type="button" class="range-btn${!_kiFitQ?' active':''}" data-ki-fit-q="0">Jahr</button><button type="button" class="range-btn${_kiFitQ?' active':''}" data-ki-fit-q="1">Quartal</button>`;
 }
 function kiFitPeriodeBinden(el, sym){ el.querySelectorAll('[data-ki-fit-q]').forEach(b=>b.addEventListener('click', ()=>{ _kiFitQ = b.dataset.kiFitQ==='1'; kiFitnessZeichnen(sym); })); }
+// ---- Dividenden nach Vorlage Seeking Alpha (Nutzer 17.11.2026): Uebersicht, Rendite, Wachstum, Sicherheit, Historie.
+// Ohne deren Noten (A-F, Premium) und ohne Branchenvergleich - beides gibt es frei nicht. Zahlungen und Kurse: Yahoo
+// (Sonderausschuettungen herausgefiltert wie im Chart); Gewinn, Cashflow, Schulden: SEC-Jahresberichte (fitness.php).
+let _kiDivAnsicht = 'uebersicht';
+function kiDividendenSeite(el, d, sym){
+  if(_kiFitChart){ try{ _kiFitChart.destroy(); } catch(e){} _kiFitChart = null; }
+  const D = (_kiFitDivs && _kiFitDivs.sym===sym) ? _kiFitDivs : null;
+  const kopf = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      <button type="button" class="range-btn" data-ki-fit-zurueck="1">← Fitness</button><b style="font-size:15px;">Dividenden</b>
+      ${[['uebersicht','Übersicht'],['rendite','Div.-Rendite'],['wachstum','Dividendenwachstum'],['sicherheit','Dividendensicherheit'],['historie','Dividendenhistorie']].map(([k,n])=>`<button type="button" class="range-btn${_kiDivAnsicht===k?' active':''}" data-ki-div-ans="${k}">${n}</button>`).join('')}
+      <span class="muted" style="font-size:11.5px;">Zahlungen und Kurse: Yahoo · Gewinn, Cashflow, Schulden: SEC</span></div>`;
+  const binden = ()=>{
+    el.querySelector('[data-ki-fit-zurueck]')?.addEventListener('click', ()=>{ _kiFitFeld = 'fcfdiv'; kiFitnessZeichnen(sym); });
+    el.querySelectorAll('[data-ki-div-ans]').forEach(b=>b.addEventListener('click', ()=>{ _kiDivAnsicht = b.dataset.kiDivAns; kiDividendenSeite(el, d, sym); }));
+  };
+  if(!D || !D.divs.length){ el.innerHTML = kopf + `<div class="muted">${D ? 'Keine Dividendenzahlungen bei Yahoo.' : 'Lade Dividenden …'}</div>`; binden(); return; }
+  const divs = D.divs.map(([t,b])=>[String(t).slice(0,10), Number(b)]).filter(x=>x[1]>0).sort((a,b)=>a[0]<b[0]?-1:1);
+  const k = D.kerzen || [];
+  const kurs = k.length ? k[k.length-1][4] : null;
+  const heute = new Date().toISOString().slice(0,10);
+  const vorTagen = n=>{ const x = new Date(); x.setDate(x.getDate()-n); return x.toISOString().slice(0,10); };
+  const ttmBis = (bis)=>{ const von = new Date(bis+'T12:00:00Z'); von.setUTCFullYear(von.getUTCFullYear()-1); const v = von.toISOString().slice(0,10); return divs.filter(x=>x[0]>v && x[0]<=bis).reduce((s,x)=>s+x[1],0); };
+  // Zahlungen je Jahr (nur abgeschlossene Jahre fuer Wachstum)
+  const jahrNow = new Date().getFullYear();
+  const jeJahr = {}; divs.forEach(([t,b])=>{ const y = +t.slice(0,4); jeJahr[y] = (jeJahr[y]||0) + b; });
+  const jahre = Object.keys(jeJahr).map(Number).filter(y=>y<jahrNow).sort((a,b)=>a-b);
+  const letztJ = jahre[jahre.length-1];
+  const cagr = n=>{ const a = jeJahr[letztJ-n], e = jeJahr[letztJ]; return (a>0 && e>0) ? (Math.pow(e/a, 1/n)-1)*100 : null; };
+  const maxJ = {}; divs.forEach(([t,b])=>{ const y = +t.slice(0,4); if(y<jahrNow) maxJ[y] = Math.max(maxJ[y]||0, b); });   // hoechste Einzelzahlung je Jahr
+  let folge = 0; for(let y=letztJ; maxJ[y-1]!=null && (maxJ[y] > maxJ[y-1]*1.0001 || jeJahr[y] > jeJahr[y-1]*1.0001); y--) folge++;
+  let gezahlt = 0; for(let y=letztJ; jeJahr[y]>0; y--) gezahlt++;
+  // Frequenz aus den letzten 12 Monaten, Vorwaerts-Dividende = letzte Zahlung x Frequenz
+  const n12 = divs.filter(x=>x[0]>vorTagen(370)).length, freq = n12>=11 ? 12 : (n12>=4 ? 4 : (n12>=2 ? 2 : 1));
+  const letzte = divs[divs.length-1], fwd = letzte[1]*freq, ttm = ttmBis(heute);
+  const freqTxt = {12:'monatlich', 4:'vierteljährlich', 2:'halbjährlich', 1:'jährlich'}[freq];
+  const pz = v=>v==null || !isFinite(v) ? '–' : kiNum(v,2)+' %';
+  const zeile = (n, v, hilfe)=>`<tr><td style="padding:4px 8px;">${n}${hilfe?` <span class="muted" style="font-size:11px;">${hilfe}</span>`:''}</td><td style="padding:4px 8px;text-align:right;font-weight:700;">${v}</td></tr>`;
+  const tab = (titel, inhalt)=>`<div class="panel" style="flex:1 1 320px;padding:10px 12px;"><div style="font-weight:700;font-size:12px;letter-spacing:.04em;margin-bottom:6px;">${titel}</div><table style="width:100%;font-size:12.5px;border-collapse:collapse;">${inhalt}</table></div>`;
+  // SEC-Jahre (neueste zuerst) fuer Sicherheit
+  const sec = (d.jahre||[]).slice().sort((a,b)=>a.date<b.date?1:-1);
+  const s0 = sec[0] || {};
+  const epsJe = y=>y.gewinn!=null && y.aktien ? y.gewinn/y.aktien : null, fcfJe = y=>y.ocf!=null && y.aktien ? (y.ocf-(y.capex||0))/y.aktien : null;
+  const quoteGewinn = (divJahr, y)=>{ const e = epsJe(y); return e>0 && divJahr>0 ? divJahr/e*100 : null; };
+  const quoteFcf = y=>{ const f = y.ocf!=null ? y.ocf-(y.capex||0) : null; return f>0 && y.divGezahlt>0 ? y.divGezahlt/f*100 : null; };
+  const divJahrZu = y=>jeJahr[+String(y.date).slice(0,4)] || null;
+  let html = '';
+  if(_kiDivAnsicht === 'uebersicht'){
+    html = `<div style="display:flex;gap:12px;flex-wrap:wrap;">`
+      + tab('DIVIDENDENÜBERSICHT', zeile('Div.-Rendite (FWD)', kurs ? pz(fwd/kurs*100) : '–', 'letzte Zahlung × '+freq)
+        + zeile('Div.-Rendite (TTM)', kurs ? pz(ttm/kurs*100) : '–', 'letzte 12 Monate')
+        + zeile('Jährliche Ausschüttung (FWD)', kiNum(fwd, 2)) + zeile('Ausschüttungsquote (Gewinn)', pz(quoteGewinn(divJahrZu(s0), s0)), s0.date ? 'GJ '+String(s0.date).slice(0,4) : '')
+        + zeile('Ausschüttungsquote (Free Cashflow)', pz(quoteFcf(s0)))
+        + zeile('5-Jahres-Wachstumsrate', pz(cagr(5))) + zeile('Erhöhungen in Folge', folge+' Jahre') + zeile('Jahre gezahlt', gezahlt+' Jahre'))
+      + tab('ZULETZT GEZAHLTE DIVIDENDE', zeile('Betrag', kiNum(letzte[1], 4)) + zeile('Ex-Dividenden-Datum', escapeHtml(letzte[0].split('-').reverse().join('.')))
+        + zeile('Frequenz', freqTxt) + zeile('Zahlungen letzte 12 Monate', String(n12))
+        + zeile('Veränderung zur Vorzahlung', divs.length>1 ? pz((letzte[1]/divs[divs.length-2][1]-1)*100) : '–'))
+      + `</div><div class="muted" style="font-size:11px;margin-top:6px;">Ex-Datum laut Yahoo; Zahltag und angekündigte Dividende liefert die freie Quelle nicht. Sonderausschüttungen sind herausgerechnet.</div>`;
+  } else if(_kiDivAnsicht === 'rendite'){
+    // Je Kalenderjahr: Rendite zum Jahresende, Durchschnitt, Max, Min (Dividende der letzten 12 Monate je Monatsschluss)
+    const proJahr = {};
+    k.forEach(x=>{ const t = x[0], c = x[4]; if(!(c>0)) return; const r = ttmBis(t)/c*100; if(!(r>0)) return; const y = +t.slice(0,4); (proJahr[y] = proJahr[y] || []).push([t, r]); });
+    const ys = Object.keys(proJahr).map(Number).sort((a,b)=>b-a).slice(0, 12);
+    const avg = a=>a.reduce((s,x)=>s+x,0)/a.length;
+    const alle5 = ys.filter(y=>y<jahrNow && y>=jahrNow-5).flatMap(y=>proJahr[y].map(x=>x[1]));
+    const r5 = alle5.length ? avg(alle5) : null, rJetzt = kurs ? ttm/kurs*100 : null;
+    html = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;">`
+      + tab('DIV.-RENDITE', zeile('Div.-Rendite (TTM)', pz(rJetzt)) + zeile('Div.-Rendite (FWD)', kurs ? pz(fwd/kurs*100) : '–') + zeile('5-Jahres-Durchschnitt', pz(r5))
+        + zeile('Abweichung vom 5J-Durchschnitt', r5 && rJetzt ? pz((rJetzt/r5-1)*100) : '–', 'höher = günstiger als üblich'))
+      + tab('RENDITE AUF EINSTAND', [1,3,5].map(n=>{ const kk = k[k.length-1-12*n]; return zeile(n+'-Jahres-Div.-Rendite auf Einstand', kk && kk[4]>0 ? pz(fwd/kk[4]*100) : '–', 'wer vor '+n+' J. kaufte'); }).join(''))
+      + `</div><table style="width:100%;font-size:12.5px;border-collapse:collapse;"><thead><tr style="text-align:right;"><th style="text-align:left;padding:4px 8px;">Jahr</th><th style="padding:4px 8px;">Rendite Jahresende</th><th style="padding:4px 8px;">Durchschnitt</th><th style="padding:4px 8px;">Max.</th><th style="padding:4px 8px;">Min.</th></tr></thead><tbody>`
+      + ys.map(y=>{ const a = proJahr[y].map(x=>x[1]); const ende = y<jahrNow ? proJahr[y][proJahr[y].length-1][1] : null;
+          return `<tr style="text-align:right;border-top:1px solid var(--border);"><td style="text-align:left;padding:4px 8px;">${y}</td><td style="padding:4px 8px;">${pz(ende)}</td><td style="padding:4px 8px;">${pz(avg(a))}</td><td style="padding:4px 8px;">${pz(Math.max(...a))}</td><td style="padding:4px 8px;">${pz(Math.min(...a))}</td></tr>`; }).join('')
+      + `</tbody></table><div class="muted" style="font-size:11px;margin-top:6px;">Rendite je Monatsschluss = Dividenden der letzten 12 Monate ÷ Kurs.</div>`;
+  } else if(_kiDivAnsicht === 'wachstum'){
+    const ys = jahre.slice(-15);
+    html = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;">`
+      + tab('DIVIDENDENWACHSTUM', zeile('Wachstum letzte Zahlung (FWD)', divs.length>freq ? pz((letzte[1]/divs[divs.length-1-freq][1]-1)*100) : '–', 'gegen vor einem Jahr')
+        + [1,3,5,10].map(n=>zeile(n+' J. (CAGR)', pz(cagr(n)))).join(''))
+      + tab('ZUM VERGLEICH (SEC, je Aktie)', (()=>{ const g = (f, n)=>{ const a = sec[n], e = sec[0]; const va = a && f(a), ve = e && f(e); return va>0 && ve>0 ? (Math.pow(ve/va, 1/n)-1)*100 : null; };
+          return zeile('Gewinn je Aktie 5 J. (CAGR)', pz(g(epsJe, 5))) + zeile('Free Cashflow je Aktie 5 J. (CAGR)', pz(g(fcfJe, 5))) + zeile('Umsatz 5 J. (CAGR)', pz(g(y=>y.umsatz, 5))); })())
+      + `</div><div style="height:240px;"><canvas id="kiDivChart"></canvas></div>`
+      + `<table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:6px;"><tr><td class="muted">Jahr</td>${ys.map(y=>`<td style="text-align:right;">${y}</td>`).join('')}</tr>`
+      + `<tr><td class="muted">Dividende</td>${ys.map(y=>`<td style="text-align:right;">${kiNum(jeJahr[y],2)}</td>`).join('')}</tr>`
+      + `<tr><td class="muted">Veränd.</td>${ys.map(y=>{ const v = jeJahr[y-1] ? (jeJahr[y]/jeJahr[y-1]-1)*100 : null; return `<td style="text-align:right;color:${v==null?'':(v>=0?'#16a34a':'#dc2626')};">${v==null?'–':kiNum(v,1)+' %'}</td>`; }).join('')}</tr></table>`;
+    el.innerHTML = kopf + html; binden();
+    if(window.Chart){ _kiFitChart = new Chart(document.getElementById('kiDivChart'), {type:'bar', data:{labels:ys.map(String), datasets:[{label:'Dividende je Aktie (Kalenderjahr)', data:ys.map(y=>jeJahr[y]), backgroundColor:'#7c3aed'}]},
+      options:{responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, ticks:{callback:v=>kiNum(v,2)}}}}}); }
+    return;
+  } else if(_kiDivAnsicht === 'sicherheit'){
+    const zj = sec.slice(0, 10);
+    const zeilen = [
+      ['Ausschüttungsquote Gewinn', y=>pz(quoteGewinn(divJahrZu(y), y)), 'Dividende ÷ Gewinn je Aktie'],
+      ['Ausschüttungsquote Free Cashflow', y=>pz(quoteFcf(y)), 'gezahlte Dividenden ÷ (op. Cashflow − Investitionen)'],
+      ['Free-Cashflow-Deckung', y=>{ const q = quoteFcf(y); return q ? kiNum(100/q,2)+'×' : '–'; }, 'über 1,0× = aus dem Cashflow gedeckt'],
+      ['Schulden ÷ Eigenkapital', y=>y.schulden!=null && y.ek>0 ? kiNum(y.schulden/y.ek,2)+'×' : '–', ''],
+      ['Schulden ÷ Gesamtvermögen', y=>pz(y.schulden!=null && y.vermoegen>0 ? y.schulden/y.vermoegen*100 : null), ''],
+      ['Nettomarge', y=>pz(y.gewinn!=null && y.umsatz>0 ? y.gewinn/y.umsatz*100 : null), ''],
+      ['Eigenkapitalrendite', y=>pz(y.gewinn!=null && y.ek>0 ? y.gewinn/y.ek*100 : null), ''],
+      ['Op. Cashflow (Mio.)', y=>y.ocf!=null ? kiNum(y.ocf/1e6,0) : '–', ''],
+    ];
+    const ampel = q=>q==null ? '' : (q<=60 ? '#16a34a' : (q<=85 ? '#d97706' : '#dc2626'));
+    const qF = quoteFcf(s0), qG = quoteGewinn(divJahrZu(s0), s0);
+    html = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;">`
+      + `<div class="panel" style="flex:1 1 320px;padding:10px 12px;font-size:12.5px;"><div style="font-weight:700;font-size:12px;letter-spacing:.04em;margin-bottom:6px;">EINSCHÄTZUNG (eigene Regel, keine Note)</div>`
+      + `<div>Ausschüttungsquote Free Cashflow <b style="color:${ampel(qF)};">${pz(qF)}</b> · Gewinn <b style="color:${ampel(qG)};">${pz(qG)}</b></div>`
+      + `<div class="muted" style="font-size:11.5px;margin-top:4px;">grün bis 60 %, gelb bis 85 %, rot darüber (REITs/BDCs zahlen regelmäßig mehr – dort zählt der Cashflow).</div></div></div>`
+      + `<div style="overflow-x:auto;"><table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr><th style="text-align:left;padding:4px 8px;">Kennzahl</th>${zj.map(y=>`<th style="text-align:right;padding:4px 6px;">${String(y.date).slice(5,7)}/${String(y.date).slice(2,4)}</th>`).join('')}</tr></thead><tbody>`
+      + zeilen.map(([n,f,h])=>`<tr style="border-top:1px solid var(--border);"><td style="padding:4px 8px;">${n}${h?`<div class="muted" style="font-size:10.5px;">${h}</div>`:''}</td>${zj.map(y=>`<td style="text-align:right;padding:4px 6px;">${f(y)}</td>`).join('')}</tr>`).join('')
+      + `</tbody></table></div>`;
+  } else {
+    const rev = divs.slice().reverse().slice(0, 80);
+    html = `<table style="width:100%;font-size:12.5px;border-collapse:collapse;"><thead><tr style="text-align:right;"><th style="text-align:left;padding:4px 8px;">Ex-Datum</th><th style="padding:4px 8px;">Betrag</th><th style="padding:4px 8px;">Veränderung</th><th style="padding:4px 8px;">Rendite (TTM) am Tag</th></tr></thead><tbody>`
+      + rev.map((x,i)=>{ const vor = rev[i+1]; const v = vor ? (x[1]/vor[1]-1)*100 : null; const kk = k.filter(z=>z[0]<=x[0]).pop(); const r = kk && kk[4]>0 ? ttmBis(x[0])/kk[4]*100 : null;
+          return `<tr style="text-align:right;border-top:1px solid var(--border);"><td style="text-align:left;padding:4px 8px;">${escapeHtml(x[0].split('-').reverse().join('.'))}</td><td style="padding:4px 8px;">${kiNum(x[1],4)}</td><td style="padding:4px 8px;color:${v==null||Math.abs(v)<0.01?'':(v>0?'#16a34a':'#dc2626')};">${v==null||Math.abs(v)<0.01?'–':(v>0?'+':'')+kiNum(v,2)+' %'}</td><td style="padding:4px 8px;">${pz(r)}</td></tr>`; }).join('')
+      + `</tbody></table><div class="muted" style="font-size:11px;margin-top:6px;">Letzte ${rev.length} Zahlungen (Yahoo, Ex-Datum), ohne Sonderausschüttungen.</div>`;
+  }
+  el.innerHTML = kopf + html; binden();
+}
 function kiFinanzTabelle(el, d, sym){
   if(_kiFitChart){ try{ _kiFitChart.destroy(); } catch(e){} _kiFitChart = null; }
   let jahre = kiFitReihe(d, sym); if(_kiFitJahre) jahre = jahre.slice(-_kiFitJahre * (_kiFitQ ? 4 : 1));
@@ -930,13 +1052,14 @@ async function kiFitnessZeichnen(sym){
     _kiFitDivs = {sym, divs:[]};
     fetch('quote.php?ohlc=1&symbols=' + encodeURIComponent(sym) + '&interval=1mo&range=max', {cache:'no-store'}).then(r=>r.json()).then(q=>{
       const roh = Array.isArray(q && q.dividenden) ? q.dividenden : [];
-      _kiFitDivs = {sym, divs: roh.filter(([t,b], i)=>{ const vor = roh.slice(Math.max(0,i-8), i).map(x=>Number(x[1])).sort((x,y)=>x-y); if(vor.length>=3){ const med = vor[Math.floor(vor.length/2)]; if(med>0 && Number(b) > 3*med) return false; } return true; })};
+      _kiFitDivs = {sym, kerzen: Array.isArray(q && q.kerzen) ? q.kerzen : [], divs: roh.filter(([t,b], i)=>{ const vor = roh.slice(Math.max(0,i-8), i).map(x=>Number(x[1])).sort((x,y)=>x-y); if(vor.length>=3){ const med = vor[Math.floor(vor.length/2)]; if(med>0 && Number(b) > 3*med) return false; } return true; })};
       if(_kiTab==='fitness' && _kiFitDivs.divs.length) kiFitnessZeichnen(sym);
     }).catch(()=>{});
   }
   if(!d || d.fehler || !(d.jahre||[]).length){ el.innerHTML = `<b style="font-size:15px;">Finanzielle Fitness</b> <span class="muted">· Fiscal fitness – ${escapeHtml((d && (d.fehler||d.error)) || 'keine Daten')}</span>`; return; }
   const feld = KI_FIT_FELDER.find(f=>f[0]===_kiFitFeld) || KI_FIT_FELDER[0];
   if(feld[0]==='tabelle') return kiFinanzTabelle(el, d, sym);
+  if(feld[0]==='dividenden') return kiDividendenSeite(el, d, sym);
   // Dividende je Aktie = Summe der Yahoo-Ausschuettungen (Ex-Tag) im Geschaeftsjahr - nach Vorlage (AMGN 2024: 4 x 2,25 = 9,00;
   // die SEC meldet dort die erklaerte Dividende 9,13). Nur fuer Jahre, die die Yahoo-Historie abdeckt.
   let jahre = kiFitReihe(d, sym);
