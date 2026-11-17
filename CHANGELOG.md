@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.24 – 17.11.2026
+- Fitness: **Bewertungskennzahlen** (KGV, EV/EBITDA, Kurs/Umsatz, Kurs/Buchwert, Kurs/Cashflow … jetzt gegen den eigenen 5-Jahres-Schnitt) und **Quartalszahlen** (Gewinn je Aktie gegen Schätzung).
+- Dividendenhistorie mit Trennzeile je Jahr (Summe, Anzahl, Veränderung).
+
 ## 1.23 – 17.11.2026
 - Dividenden: sechster Reiter **Dividendenschätzungen** – Fortschreibung der heutigen Dividende mit dem eigenen Wachstum (mit Spanne) und Ausschüttungsquote auf die Gewinnschätzungen der Analysten.
 

@@ -856,6 +856,8 @@ const KI_FIT_FELDER = [
   ['eigen', 'Eigene Grafik', 'bis 3 Kennzahlen frei wählbar', '', y=>_kiFitEigen.map((k,i)=>{ const z = KI_FIT_KATALOG.find(x=>x[0]===k) || KI_FIT_KATALOG[0]; const v = z[2](y); return [z[1], v, ['#2563eb','#ea580c','#16a34a'][i], z[3]]; })],
   ['tabelle', 'Alle Jahreszahlen (Tabelle)', 'GuV, Cashflow, Bilanz', 'Mio.', y=>[]],
   ['dividenden', 'Dividenden (Übersicht, Rendite, Wachstum, Sicherheit, Historie)', 'nach Vorlage Seeking Alpha, ohne deren Noten', '', y=>[]],
+  ['bewtab', 'Bewertungskennzahlen (KGV, EV/EBITDA, KUV … gegen 5 J.)', 'nach Vorlage Seeking Alpha', '', y=>[]],
+  ['quartale', 'Quartalszahlen (Gewinn gegen Schätzung)', 'Yahoo', '', y=>[]],
 ];
 // Wie Vorlage "Financials" (dort Premium): alle Jahreszahlen untereinander mit Mini-Verlauf und CAGR, neueste Jahre links
 function kiFitPeriodeKnopf(d){
@@ -1036,11 +1038,96 @@ function kiDividendenSeite(el, d, sym){
   } else {
     const rev = divs.slice().reverse().slice(0, 80);
     html = `<table style="width:100%;font-size:12.5px;border-collapse:collapse;"><thead><tr style="text-align:right;"><th style="text-align:left;padding:4px 8px;">Ex-Datum</th><th style="padding:4px 8px;">Zahltag</th><th style="padding:4px 8px;">Betrag</th><th style="padding:4px 8px;">Veränderung</th><th style="padding:4px 8px;">Rendite (TTM) am Tag</th></tr></thead><tbody>`
-      + rev.map((x,i)=>{ const vor = rev[i+1]; const v = vor ? (x[1]/vor[1]-1)*100 : null; const kk = k.filter(z=>z[0]<=x[0]).pop(); const r = kk && kk[4]>0 ? ttmBis(x[0])/kk[4]*100 : null;
-          return `<tr style="text-align:right;border-top:1px solid var(--border);"><td style="text-align:left;padding:4px 8px;">${escapeHtml(x[0].split('-').reverse().join('.'))}</td><td style="padding:4px 8px;">${datDe(zahltagZu(x[0]))}</td><td style="padding:4px 8px;">${kiNum(x[1],4)}</td><td style="padding:4px 8px;color:${v==null||Math.abs(v)<0.01?'':(v>0?'#16a34a':'#dc2626')};">${v==null||Math.abs(v)<0.01?'–':(v>0?'+':'')+kiNum(v,2)+' %'}</td><td style="padding:4px 8px;">${pz(r)}</td></tr>`; }).join('')
+      + rev.map((x,i)=>{ const yJ = x[0].slice(0,4), neuJ = i===0 || rev[i-1][0].slice(0,4)!==yJ;
+          const trenner = neuJ ? `<tr><td colspan="5" style="padding:7px 8px 4px;font-weight:700;background:var(--surface-hover);border-top:2px solid var(--border);">${yJ}<span class="muted" style="font-weight:400;margin-left:10px;">Summe ${kiNum(jeJahr[+yJ]||0,4)} · ${divs.filter(z=>z[0].slice(0,4)===yJ).length} Zahlungen${jeJahr[+yJ-1] && +yJ!==jahrNow ? ' · '+((jeJahr[+yJ]/jeJahr[+yJ-1]-1)*100>=0?'+':'')+kiNum((jeJahr[+yJ]/jeJahr[+yJ-1]-1)*100,1)+' % zum Vorjahr' : ''}${+yJ===jahrNow?' (laufend)':''}</span></td></tr>` : '';
+          const vor = rev[i+1]; const v = vor ? (x[1]/vor[1]-1)*100 : null; const kk = k.filter(z=>z[0]<=x[0]).pop(); const r = kk && kk[4]>0 ? ttmBis(x[0])/kk[4]*100 : null;
+          return trenner + `<tr style="text-align:right;border-top:1px solid var(--border);"><td style="text-align:left;padding:4px 8px;">${escapeHtml(x[0].split('-').reverse().join('.'))}</td><td style="padding:4px 8px;">${datDe(zahltagZu(x[0]))}</td><td style="padding:4px 8px;">${kiNum(x[1],4)}</td><td style="padding:4px 8px;color:${v==null||Math.abs(v)<0.01?'':(v>0?'#16a34a':'#dc2626')};">${v==null||Math.abs(v)<0.01?'–':(v>0?'+':'')+kiNum(v,2)+' %'}</td><td style="padding:4px 8px;">${pz(r)}</td></tr>`; }).join('')
       + `</tbody></table><div class="muted" style="font-size:11px;margin-top:6px;">Letzte ${rev.length} Zahlungen (Yahoo, Ex-Datum), ohne Sonderausschüttungen.</div>`;
   }
   el.innerHTML = kopf + html; binden();
+}
+// ---- Bewertungskennzahlen und Quartalszahlen nach Vorlage Seeking Alpha (Nutzer 17.11.2026), ohne deren Noten ----
+// Jetzt: Kurs (Yahoo) gegen das letzte Geschaeftsjahr (SEC) bzw. Marktwert/Unternehmenswert von Yahoo; 5-J.-Schnitt: je Geschaeftsjahr
+// Kurs am Jahresende x Aktien (SEC), Unternehmenswert dort = Marktwert + Finanzschulden (ohne Kasse - die fehlt in den Jahreswerten).
+const _kiInfoCache = {};
+function kiInfoLaden(sym){ const s = String(sym).toUpperCase(); if(!_kiInfoCache[s]) _kiInfoCache[s] = fetch('fitness.php?info=1&symbol=' + encodeURIComponent(sym), {cache:'no-store'}).then(r=>r.json()).catch(()=>null); return _kiInfoCache[s]; }
+function kiBewTabSeite(el, d, sym){
+  if(_kiFitChart){ try{ _kiFitChart.destroy(); } catch(e){} _kiFitChart = null; }
+  const S = String(sym).toUpperCase();
+  const ip = kiInfoLaden(sym); const info = ip._wert;
+  if(!('_wert' in ip)) ip.then(w=>{ ip._wert = w; if(document.getElementById('kiFitness')===el && (_kiFitFeld==='bewtab' || _kiFitFeld==='quartale')) kiBewTabSeite(el, d, sym); });
+  if(!(S in _kiDivEps)){ _kiDivEps[S] = null; kiReihen(sym).then(rh=>{ _kiDivEps[S] = (rh && rh.schaetzung) || []; if(document.getElementById('kiFitness')===el) kiBewTabSeite(el, d, sym); }).catch(()=>{ _kiDivEps[S] = []; }); }
+  const D = (_kiFitDivs && _kiFitDivs.sym===sym) ? _kiFitDivs : null;
+  if(D && !(D.kerzen && D.kerzen.length) && !D._kursLaedt){ D._kursLaedt = true; fetch('quote.php?ohlc=1&symbols=' + encodeURIComponent(sym) + '&interval=1mo&range=max', {cache:'no-store'}).then(r=>r.json()).then(q=>{ D.kerzen = (q && q.kerzen) || []; if(document.getElementById('kiFitness')===el) kiBewTabSeite(el, d, sym); }).catch(()=>{}); }
+  const k = (D && D.kerzen) || [];
+  const kopf = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;"><button type="button" class="range-btn" data-ki-fit-zurueck="1">← Fitness</button>
+    <button type="button" class="range-btn${_kiFitFeld==='bewtab'?' active':''}" data-ki-bt="bewtab">Bewertungskennzahlen</button><button type="button" class="range-btn${_kiFitFeld==='quartale'?' active':''}" data-ki-bt="quartale">Quartalszahlen</button>
+    <span class="muted" style="font-size:11.5px;">Kurse, Marktwert, Schätzungen: Yahoo · Jahreszahlen: SEC${info===undefined?' · lädt …':''}</span></div>`;
+  const binden = ()=>{ el.querySelector('[data-ki-fit-zurueck]')?.addEventListener('click', ()=>{ _kiFitFeld = 'fcfdiv'; kiFitnessZeichnen(sym); });
+    el.querySelectorAll('[data-ki-bt]').forEach(b=>b.addEventListener('click', ()=>{ _kiFitFeld = b.dataset.kiBt; kiBewTabSeite(el, d, sym); })); };
+  const x2 = (v, dez=1)=>v==null || !isFinite(v) || v<=0 ? '–' : kiNum(v, dez)+'×';
+  const pz = v=>v==null || !isFinite(v) ? '–' : kiNum(v,2)+' %';
+  if(_kiFitFeld === 'quartale'){
+    const q = (info && info.quartale) || [];
+    const schlaegt = q.filter(x=>x.ist!=null && x.schaetzung!=null && x.ist > x.schaetzung).length;
+    el.innerHTML = kopf + (q.length ? `<table style="width:100%;font-size:12.5px;border-collapse:collapse;"><thead><tr style="text-align:right;"><th style="text-align:left;padding:4px 8px;">Quartal</th><th style="padding:4px 8px;">Gewinn je Aktie (Schätzung)</th><th style="padding:4px 8px;">Ist</th><th style="padding:4px 8px;">Überraschung</th></tr></thead><tbody>`
+      + q.slice().reverse().map(x=>{ const ab = x.abweichung!=null ? x.abweichung*100 : (x.ist!=null && x.schaetzung ? (x.ist/x.schaetzung-1)*100 : null);
+          return `<tr style="text-align:right;border-top:1px solid var(--border);"><td style="text-align:left;padding:4px 8px;">${escapeHtml(String(x.quartal||'–'))}</td><td style="padding:4px 8px;">${x.schaetzung!=null?kiNum(x.schaetzung,2):'–'}</td><td style="padding:4px 8px;font-weight:700;">${x.ist!=null?kiNum(x.ist,2):'–'}</td><td style="padding:4px 8px;color:${ab==null?'':(ab>=0?'#16a34a':'#dc2626')};">${ab==null?'–':(ab>=0?'+':'')+kiNum(ab,1)+' %'}</td></tr>`; }).join('')
+      + `</tbody></table><div style="margin-top:8px;font-size:12.5px;"><b>${schlaegt} von ${q.length}</b> Quartalen über der Schätzung.</div><div class="muted" style="font-size:11px;margin-top:4px;">Gewinn je Aktie bereinigt (wie von den Analysten geschätzt), Yahoo. Umsatz gegen Schätzung liefert die freie Quelle nicht.</div>`
+      : `<div class="muted">${info===undefined ? 'Lade Quartalszahlen …' : 'Keine Quartalszahlen bei Yahoo.'}</div>`);
+    binden(); return;
+  }
+  // --- Bewertungskennzahlen ---
+  const kurs = k.length ? k[k.length-1][4] : (info && info.vortag) || null;
+  const sec = (d.jahre||[]).slice().sort((a,b)=>a.date<b.date?-1:1);
+  let L = sec[sec.length-1] || {};
+  { const Q = (d.quartale||[]).slice().sort((a,b)=>a.date<b.date?-1:1).slice(-4);
+    const summe = f=>Q.every(q=>q[f]!=null) ? Q.reduce((s,q)=>s+q[f],0) : null;
+    if(Q.length===4 && summe('umsatz')!=null && (!L.date || Q[3].date > L.date)){
+      const z = Q[3];
+      L = {...L, date:z.date, ttm:true, umsatz:summe('umsatz'), gewinn:summe('gewinn') ?? L.gewinn, betrieb:summe('betrieb') ?? L.betrieb, abschreibung:summe('abschreibung') ?? L.abschreibung,
+           ocf:summe('ocf') ?? L.ocf, capex:summe('capex') ?? L.capex, ek:z.ek ?? L.ek, schulden:z.schulden ?? L.schulden, aktien:z.aktien ?? L.aktien};
+    } }
+  const mcap = (info && info.marktwert) || (kurs && L.aktien ? kurs*L.aktien : null);
+  const ev = (info && info.unternehmenswert) || (mcap!=null ? mcap + (L.schulden||0) : null);
+  const ebitda = y=>y.betrieb!=null ? y.betrieb + (y.abschreibung||0) : null;
+  const eps = y=>y.gewinn!=null && y.aktien ? y.gewinn/y.aktien : null;
+  const S0 = (_kiDivEps[S]||[])[0], S1 = (_kiDivEps[S]||[])[1];
+  const kgvFwd = S0 && S0.eps>0 && kurs ? kurs/S0.eps : null;
+  const ltg = info && info.ltg!=null ? info.ltg*100 : null;
+  const jetzt = {
+    kgv: eps(L)>0 && kurs ? kurs/eps(L) : null, kgvF: kgvFwd, peg: kgvFwd && ltg>0 ? kgvFwd/ltg : null,
+    evU: ev && L.umsatz>0 ? ev/L.umsatz : null, evE: ev && ebitda(L)>0 ? ev/ebitda(L) : null, evB: ev && L.betrieb>0 ? ev/L.betrieb : null,
+    kuv: mcap && L.umsatz>0 ? mcap/L.umsatz : null, kbv: mcap && L.ek>0 ? mcap/L.ek : null, kcv: mcap && L.ocf>0 ? mcap/L.ocf : null,
+    fcfR: mcap && L.ocf!=null ? (L.ocf-(L.capex||0))/mcap*100 : null, gewR: mcap && L.gewinn!=null ? L.gewinn/mcap*100 : null,
+  };
+  // 5 Geschaeftsjahre davor: Kurs am Monatsschluss des Geschaeftsjahresendes
+  const kursAm = dt=>{ const m = String(dt).slice(0,7); const z = k.filter(x=>x[0].slice(0,7)<=m).pop(); return z ? z[4] : null; };
+  const hist = sec.slice(-6, -1).map(y=>{ const p = kursAm(y.date), mc = p && y.aktien ? p*y.aktien : null, e = mc!=null ? mc + (y.schulden||0) : null;
+    return {kgv: eps(y)>0 && p ? p/eps(y) : null, evU: e && y.umsatz>0 ? e/y.umsatz : null, evE: e && ebitda(y)>0 ? e/ebitda(y) : null, evB: e && y.betrieb>0 ? e/y.betrieb : null,
+      kuv: mc && y.umsatz>0 ? mc/y.umsatz : null, kbv: mc && y.ek>0 ? mc/y.ek : null, kcv: mc && y.ocf>0 ? mc/y.ocf : null,
+      fcfR: mc && y.ocf!=null ? (y.ocf-(y.capex||0))/mc*100 : null, gewR: mc && y.gewinn!=null ? y.gewinn/mc*100 : null}; });
+  const schnitt = key=>{ const w = hist.map(h=>h[key]).filter(v=>v!=null && isFinite(v) && v>0); return w.length>=3 ? w.reduce((a,b)=>a+b,0)/w.length : null; };
+  const Z = [
+    ['KGV (GAAP, letzte 12 Monate bzw. GJ)', 'kgv', 'x', 'teuer'], ['KGV (erwartet, nächstes GJ)', 'kgvF', 'x', 'teuer', 'kgv'], ['PEG (KGV erwartet ÷ Langfrist-Wachstum)', 'peg', 'x2', 'teuer'],
+    ['EV / Umsatz', 'evU', 'x', 'teuer'], ['EV / EBITDA', 'evE', 'x', 'teuer'], ['EV / EBIT', 'evB', 'x', 'teuer'],
+    ['Kurs / Umsatz (KUV)', 'kuv', 'x', 'teuer'], ['Kurs / Buchwert (KBV)', 'kbv', 'x', 'teuer'], ['Kurs / Cashflow (KCV)', 'kcv', 'x', 'teuer'],
+    ['Gewinnrendite', 'gewR', '%', 'billig'], ['Free-Cashflow-Rendite', 'fcfR', '%', 'billig'],
+  ];
+  const zeile = ([n, key, art, richtung, vglKey])=>{
+    const v = jetzt[key], s = schnitt(vglKey || key);
+    const abw = v!=null && s ? (v/s-1)*100 : null;
+    const gut = abw==null ? null : (richtung==='teuer' ? abw < -10 : abw > 10), schlecht = abw==null ? null : (richtung==='teuer' ? abw > 10 : abw < -10);
+    const f = w=>art==='%' ? pz(w) : x2(w, art==='x2' ? 2 : 1);
+    return `<tr style="text-align:right;border-top:1px solid var(--border);"><td style="text-align:left;padding:4px 8px;">${n}</td><td style="padding:4px 8px;font-weight:700;">${f(v)}</td><td style="padding:4px 8px;">${f(s)}</td><td style="padding:4px 8px;color:${gut?'#16a34a':(schlecht?'#dc2626':'')};">${abw==null?'–':(abw>=0?'+':'')+kiNum(abw,1)+' %'}</td></tr>`;
+  };
+  el.innerHTML = kopf + `<table style="width:100%;font-size:12.5px;border-collapse:collapse;"><thead><tr style="text-align:right;"><th style="text-align:left;padding:4px 8px;">Kennzahl</th><th style="padding:4px 8px;">Jetzt</th><th style="padding:4px 8px;">Ø 5 Geschäftsjahre</th><th style="padding:4px 8px;">Abweichung</th></tr></thead><tbody>`
+    + Z.map(zeile).join('') + `</tbody></table>`
+    + `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;"><div class="panel" style="flex:1 1 320px;padding:10px 12px;font-size:12.5px;"><div style="font-weight:700;font-size:12px;letter-spacing:.04em;margin-bottom:6px;">KGV AUF SCHÄTZUNGEN</div>`
+    + [S0, S1].filter(Boolean).map(s=>`<div>GJ ${escapeHtml(String(s.ende||'').slice(0,4))}: <b>${s.eps>0 && kurs ? kiNum(kurs/s.eps,1)+'×' : '–'}</b> <span class="muted">(Gewinn je Aktie ${kiNum(s.eps,2)}, ${s.analysten||'?'} Analysten)</span></div>`).join('')
+    + (ltg!=null ? `<div class="muted" style="margin-top:4px;">Langfrist-Wachstum (Analysten, Yahoo): ${kiNum(ltg,1)} % p. a.</div>` : '') + `</div></div>`
+    + `<div class="muted" style="font-size:11px;margin-top:6px;">Grün = günstiger als der eigene 5-Jahres-Schnitt (über 10 % Abstand), rot = teurer. Jetzt: Marktwert und Unternehmenswert von Yahoo, ${L.ttm ? 'letzte 12 Monate (4 Quartale bis '+escapeHtml(String(L.date).slice(0,7))+', SEC)' : 'Jahreszahlen des letzten Geschäftsjahres (SEC'+(L.date?', '+escapeHtml(String(L.date).slice(0,7)):'')+')'}. Im Schnitt: Unternehmenswert = Marktwert + Finanzschulden (ohne Kasse). Keine Branchenvergleiche, keine Noten.</div>`;
+  binden();
 }
 function kiFinanzTabelle(el, d, sym){
   if(_kiFitChart){ try{ _kiFitChart.destroy(); } catch(e){} _kiFitChart = null; }
@@ -1118,6 +1205,7 @@ async function kiFitnessZeichnen(sym){
     }).catch(()=>{});
   }
   if(_kiFitFeld==='dividenden') return kiDividendenSeite(el, (d && Array.isArray(d.jahre)) ? d : {jahre:[]}, sym);   // auch ohne SEC (Nicht-US)
+  if(_kiFitFeld==='bewtab' || _kiFitFeld==='quartale') return kiBewTabSeite(el, (d && Array.isArray(d.jahre)) ? d : {jahre:[]}, sym);
   if(!d || d.fehler || !(d.jahre||[]).length){ el.innerHTML = `<b style="font-size:15px;">Finanzielle Fitness</b> <span class="muted">· Fiscal fitness – ${escapeHtml((d && (d.fehler||d.error)) || 'keine Daten')}</span>`; return; }
   const feld = KI_FIT_FELDER.find(f=>f[0]===_kiFitFeld) || KI_FIT_FELDER[0];
   if(feld[0]==='tabelle') return kiFinanzTabelle(el, d, sym);
