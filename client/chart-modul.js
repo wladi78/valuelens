@@ -316,6 +316,10 @@ function kiZeitraumAnwenden(){
   else if(c.interval!=='1mo' && z.length>260) ts.setVisibleRange({from:z[z.length-260], to:bis});
   else if(c.bisZukunft) ts.setVisibleRange({from:z[0], to:bis});
   else ts.fitContent();
+  if(_kiTab !== 'bewertung'){
+    const lr = ts.getVisibleLogicalRange();
+    if(lr) ts.setVisibleLogicalRange({from: lr.from, to: lr.to + Math.max(3, (lr.to - lr.from) * 0.08)});
+  }
 }
 // Chart als eigene Seite (Nutzerwunsch 05.11.2026: "als eigenen Tab in Chrome fuer bessere Auswertung"): Link
 // index.php#chart=pos:MO&tab=bewertung&iv=1mo oeffnet nach dem Laden der Daten den Chart bildschirmfuellend.
@@ -1609,6 +1613,18 @@ async function chartZeichnenIntern(ctx, interval){
       lineStyle: stil==='punkt' ? LS.Dotted : (stil==='strich' ? LS.Dashed : LS.Solid), axisLabelVisible:true, title:titel});
     linien.push([farbe, titel, Number(preis)]);
   };
+  // Linie ab "von" bis heute, Beschriftung im Chart am Linienanfang statt an der Preisachse (Nutzer 17.11.2026: "ziemlich alles
+  // ueberlappt - kleine Linien wie bei TradingView"). Die Anfaenge liegen in verschiedenen Monaten, die Texte also nebeneinander.
+  const segLinie = (von, preis, farbe, text)=>{
+    if(preis==null || !isFinite(Number(preis))) return;
+    const ende = zeiten[zeiten.length-1];
+    const start = zeiten.find(z=>z >= von) || ende;
+    if(start >= ende){ serie.createPriceLine({price:Number(preis), color:farbe, lineWidth:1, lineStyle:LS.Dashed, axisLabelVisible:false, title:text}); linien.push([farbe, text, Number(preis)]); return; }
+    const s = chart.addLineSeries({color:farbe, lineWidth:1, lineStyle:LS.Dashed, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false});
+    s.setData([{time:start, value:Number(preis)}, {time:ende, value:Number(preis)}]);
+    s.setMarkers([{time:start, position:'aboveBar', color:farbe, shape:'circle', size:0.3, text}]);
+    linien.push([farbe, text, Number(preis)]);
+  };
   // Order Block als hellblaue Flaeche: Baseline-Serie, gefuellt zwischen Unterkante (Basis) und Oberkante
   const obBlock = (von, bis, tief, hoch, kraeftig)=>{
     if(!(hoch>tief) || !von || !bis || von>=bis) return;
@@ -1649,8 +1665,18 @@ async function chartZeichnenIntern(ctx, interval){
       arr(a.resistance,'resistance').filter(n=>n!=null).forEach((n,i)=>linie(n, '#e11d48', 'R'+(i+1), 'punkt'));
     }
     const ob = a.vp && a.vp.ob && a.vp.ob.groesster;
-    if(E.ob && ob){ linie(ob.tief, '#3b82f6', 'OB unten', 'punkt'); linie(ob.hoch, '#3b82f6', 'OB oben', 'punkt');
-      obBlock(kerzeZu(ob.monat ? String(ob.monat).slice(0,7)+'-01' : null) || zeiten[0], zeiten[zeiten.length-1], ob.tief, ob.hoch, true); }
+    if(E.ob && ob){
+      // Nutzer 17.11.2026: "OB-Daten unter den Block schreiben, entlastet die rechte Seite" - unsichtbare Hilfslinie an der
+      // Unterkante, Text am Blockanfang darunter; keine Achsenbeschriftung mehr
+      const obVon = kerzeZu(ob.monat ? String(ob.monat).slice(0,7)+'-01' : null) || zeiten[0], obBis = zeiten[zeiten.length-1];
+      obBlock(obVon, obBis, ob.tief, ob.hoch, true);
+      if(obVon < obBis){
+        const tx = chart.addLineSeries({color:'rgba(0,0,0,0)', lineWidth:1, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false});
+        tx.setData([{time:obVon, value:Number(ob.tief)}, {time:obBis, value:Number(ob.tief)}]);
+        tx.setMarkers([{time:obVon, position:'belowBar', color:'#2563eb', shape:'square', size:0.1, text:`Order Block ${kiNum(ob.tief)}–${kiNum(ob.hoch)}`}]);
+      }
+      linien.push(['#3b82f6', 'OB unten', Number(ob.tief)]); linien.push(['#3b82f6', 'OB oben', Number(ob.hoch)]);
+    }
     const m = kerzeZu(a.datum);
     if(m) marker.push({time:m, position:'aboveBar', color:'#d97706', shape:'arrowDown', text:'KI ' + a.datum});
   }
@@ -1701,7 +1727,7 @@ async function chartZeichnenIntern(ctx, interval){
     if(E.tiefs){
       // Fruehere Tiefs unter dem Kurs, die seither nicht per Schluss unterschritten wurden - die naechsten drei
       const offen = sw.filter(p=>p.typ==='L' && p.preis<kurs && !j.kerzen.slice(p.i+1).some(k=>k[4]<p.preis));
-      offen.sort((x,y)=>y.preis-x.preis).slice(0,3).forEach(p=>linie(p.preis, '#dc2626', 'Tief '+p.t.slice(5,7)+'/'+p.t.slice(0,4), 'strich'));
+      offen.sort((x,y)=>y.preis-x.preis).slice(0,3).forEach(p=>segLinie(p.t, p.preis, '#dc2626', 'Tief '+p.t.slice(5,7)+'/'+p.t.slice(2,4)+' · '+kiNum(p.preis)));
     }
     if(E.pd){
       // Spanne der letzten 60 Kerzen: obere Haelfte Premium (teuer), untere Discount (guenstig), Mitte Gleichgewicht
@@ -1733,13 +1759,7 @@ async function chartZeichnenIntern(ctx, interval){
         else if(maxH[i] < pv && pv > kursM) oben.push({i, pv});
       }
       const ende = zeiten[zeiten.length-1];
-      const zeichne = (o, farbe)=>{
-        const start = zeiten.find(z=>z >= mk[o.i][0]) || ende;
-        const titel = 'P ' + mk[o.i][0].slice(5,7) + '/' + mk[o.i][0].slice(0,4);
-        if(start >= ende){ linie(o.pv, farbe, titel, 'strich'); return; }
-        const s = chart.addLineSeries({color:farbe, lineWidth:1, lineStyle:LS.Dashed, priceLineVisible:false, lastValueVisible:true, crosshairMarkerVisible:false, title:titel});
-        s.setData([{time:start, value:o.pv}, {time:ende, value:o.pv}]);
-      };
+      const zeichne = (o, farbe)=>segLinie(mk[o.i][0], o.pv, farbe, 'P ' + mk[o.i][0].slice(5,7) + '/' + mk[o.i][0].slice(2,4) + ' · ' + kiNum(o.pv));
       unten.sort((a,b)=>b.pv-a.pv).slice(0,5).forEach(o=>zeichne(o, '#dc2626'));
       oben.sort((a,b)=>a.pv-b.pv).slice(0,5).forEach(o=>zeichne(o, '#16a34a'));
       anaLeg.push(`<span><span style="display:inline-block;width:14px;border-top:2px dashed #dc2626;vertical-align:middle;margin-right:4px;"></span>Offene Monats-Pivots unter dem Kurs: ${unten.length}${unten.length>5?' (5 nächste gezeigt)':''}</span>`,

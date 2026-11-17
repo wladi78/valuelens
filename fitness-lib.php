@@ -38,11 +38,11 @@ function fitness_daten($symbol, $neu = false) {
         }
         ksort($o); return $o;
     };
-    $stichtag = function ($tags, $alle = false) use ($facts, $tax, $einheit) {   // Bilanzwerte zum Jahresende (alle = auch Quartalsberichte)
+    $stichtag = function ($tags, $alle = false, $typ = 'geld') use ($facts, $tax, $einheit) {   // Bilanzwerte zum Jahresende (alle = auch Quartalsberichte)
         $o = [];
         foreach ((array) $tags as $t) {
             $u = $facts[$tax][$t]['units'] ?? null; if (!$u) continue;
-            $k = $einheit($u, 'geld'); if (!$k) continue;
+            $k = $einheit($u, $typ); if (!$k) continue;
             $by = [];
             foreach ($u[$k] as $e) {
                 if (!in_array($e['form'] ?? '', $alle ? ['10-K', '10-K/A', '10-Q', '10-Q/A', '20-F', '20-F/A', '40-F', '40-F/A', '6-K'] : ['10-K', '10-K/A', '20-F', '20-F/A', '40-F', '40-F/A'], true) || isset($e['start']) || !isset($e['end'], $e['val'])) continue;
@@ -97,6 +97,28 @@ function fitness_daten($symbol, $neu = false) {
     $divJe = $jahre($g ? ['CommonStockDividendsPerShareCashPaid', 'CommonStockDividendsPerShareDeclared'] : ['DividendsRecognisedAsDistributionsToOwnersPerShare'], 'jeAktie', $fdDiv);
     $rueck = $jahre($g ? ['PaymentsForRepurchaseOfCommonStock', 'PaymentsForRepurchaseOfEquity'] : ['PaymentsToAcquireOrRedeemEntitysShares']);
     $aktien = $jahre($g ? ['WeightedAverageNumberOfDilutedSharesOutstanding', 'WeightedAverageNumberOfShareOutstandingBasicAndDiluted', 'WeightedAverageNumberOfSharesOutstandingBasic'] : ['AdjustedWeightedAverageShares', 'WeightedAverageShares'], 'stueck', $fdAkt);
+    // Aktienzahl pruefen und ergaenzen (HSY 17.11.2026: SEC-Aktienzahl nur 2009-2014, 2009 in falscher Einheit -> Free Cashflow
+    // 4.102 $ je Aktie, ab 2015 kein Wert je Aktie). 1) Werte, die um mehr als Faktor 1.000 unter dem Median liegen, hochrechnen,
+    // wenn das Ergebnis passt, sonst verwerfen (wie bewertung-lib). 2) Fehlende Jahre aus Gewinn / verwaessertem Gewinn je Aktie.
+    if (count($aktien) >= 3) {
+        $pos = array_values(array_filter($aktien, fn($x) => $x > 0)); sort($pos); $med = $pos ? $pos[intdiv(count($pos), 2)] : null;
+        foreach ($aktien as $d => $n) {
+            if ($med && $n > 0 && $n * 100 < $med) {
+                $neuN = null; foreach ([1e3, 1e6, 1e9] as $f) { $q = $n * $f / $med; if ($q > 0.3 && $q < 3) { $neuN = $n * $f; break; } }
+                if ($neuN) $aktien[$d] = $neuN; else unset($aktien[$d]);
+            }
+        }
+    }
+    $epsJ = $jahre($g ? ['EarningsPerShareDiluted', 'EarningsPerShareBasicAndDiluted', 'EarningsPerShareBasic'] : ['DilutedEarningsLossPerShare', 'BasicEarningsLossPerShare'], 'jeAktie', $fdEps);
+    foreach ($epsJ as $d => $e) {
+        if (isset($aktien[$d]) || abs($e) < 0.01 || empty($gewinn[$d]) || $gewinn[$d] / $e <= 0) continue;
+        $aktien[$d] = $gewinn[$d] / $e; $fdAkt[$d] = $fdEps[$d] ?? '';
+    }
+    if ($g) {
+        $endeAkt = $stichtag(['CommonStockSharesOutstanding'], false, 'stueck');
+        foreach ($endeAkt as $d => $n) if (!isset($aktien[$d]) && $n > 0 && isset($ocf[$d])) $aktien[$d] = $n;
+    }
+    ksort($aktien);
     // Aktiensplits wie in bewertung_reihen: Jahre, die nur in Berichten vor dem Split stehen, auf heutige Aktien umrechnen
     // (sonst springt der Free Cashflow je Aktie beim Split; Yahoo-Kurse und -Dividenden sind bereits bereinigt)
     try { $splits = bewertung_reihen($symbol)['splits'] ?? []; } catch (Throwable $e) { $splits = []; }

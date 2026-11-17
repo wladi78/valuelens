@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.20 – 17.11.2026
+- Chart Analyse: Pivots, Tiefs und Order Block mit kleiner Beschriftung im Chart statt an der Preisachse (nichts überlappt mehr); rechts etwas Freiraum.
+- Fitness: Aktienzahl in falscher Einheit wird erkannt, fehlende Jahre aus der Aktienzahl zum Jahresende ergänzt (z. B. Hershey: Free Cashflow je Aktie wieder vollständig).
+
 ## 1.19 – 17.11.2026
 - Chart, Reiter Analyse: **offene Monats-Pivots** – Pivot eines Monats = (Hoch + Tief + Schluss) ÷ 3 des Vormonats; offen, solange der Kurs ihn seither nie berührt hat. Rot unter dem Kurs, grün darüber, je die 5 nächsten.
 
