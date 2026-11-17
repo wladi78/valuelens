@@ -1,5 +1,11 @@
 # Änderungen
 
+## 1.14 – 17.11.2026
+- Bewertung: **rote Warnung**, wenn die Zahlen unplausibel sind (z. B. KGV unter 3, Fair Value mehr als das 5-Fache des Kurses) – dann ist meist die Datenquelle falsch, nicht die Aktie billig.
+- BlackRock (BLK): wieder alle Jahre seit 2007 (Firma meldet seit 2024 unter neuer SEC-Nummer).
+- Prognose-Tabelle: jede Zeile in der Farbe ihrer Linie im Chart.
+- Durchblättern: Klick auf den Zähler springt an den Anfang der Liste.
+
 ## 1.13 – 17.11.2026
 - Bewertung: Firmen, deren SEC-Zahlen veraltet sind (z. B. Baidu, letzte Daten 2010), nehmen jetzt die aktuellen Yahoo-Zahlen; bei Yahoo-Zahlen wird das ADR-Verhältnis nicht mehr doppelt angewandt (Baidu zeigte einen viel zu hohen Fair Value).
 - Chart: Kopfzeile bleibt in einer Zeile (bei wenig Platz zeigen Alarm und Eigener Tab nur ihr Zeichen); beim Durchblättern wird die nächste Aktie vorgeladen.

@@ -102,10 +102,14 @@ function bewertung_reihen($symbol, $neu = false) {
             'capex'   => ['us-gaap' => ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsForCapitalExpenditures'], 'ifrs-full' => ['PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities', 'PurchaseOfPropertyPlantAndEquipment']],
         ];
         $waehr = null;
+        // Vorgaenger-Firmen mit eigener SEC-Nummer (17.11.2026, BLK: BlackRock meldet seit dem Holding-Umbau 2024 unter einer neuen
+        // Nummer, dort nur Jahre ab 2022 -> Chart zeigte 4 Jahre). Aeltere Jahre aus der alten Nummer ergaenzen; neuere Werte haben Vorrang.
+        $VORGAENGER = ['BLK' => ['0001364742']];
+        $ciks = array_merge([$cik], $VORGAENGER[$symbol] ?? []);
         // je Jahr aus allen Kennzeichen zusammengefuehrt (Firmen wechseln das Kennzeichen); Waehrung = Berichtswaehrung der Firma
-        $hole = function ($art, $typ = 'geld') use ($cik, &$tax, &$waehr, $T) {
+        $hole = function ($art, $typ = 'geld') use ($ciks, &$tax, &$waehr, $T) {
             $o = [];
-            foreach ($T[$art][$tax] as $tag) {
+            foreach ($ciks as $cik) foreach ($T[$art][$tax] as $tag) {
                 $json = br_sec_json("https://data.sec.gov/api/xbrl/companyconcept/CIK{$cik}/{$tax}/{$tag}.json");
                 $units = $json['units'] ?? [];
                 if (!$units) continue;

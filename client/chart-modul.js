@@ -202,7 +202,7 @@ function kiChartModal(){
           <option value="depot">Meine Käufe</option><option value="watchlist">Watchlist</option>
         </select>
         <button type="button" class="btn ghost" data-ki-blaettern="-1" title="Vorherige Aktie (Pfeil links)" style="padding:4px 10px;">◀</button>
-        <span id="kiBlaetterPos" class="muted" style="font-size:12px;min-width:46px;text-align:center;">–</span>
+        <span id="kiBlaetterPos" data-ki-blaettern-start="1" class="muted" title="Stelle in der Liste – Klick springt an den Anfang (1)" style="font-size:12px;min-width:46px;text-align:center;cursor:pointer;text-decoration:underline dotted;">–</span>
         <button type="button" class="btn ghost" data-ki-blaettern="1" title="Naechste Aktie (Pfeil rechts)" style="padding:4px 10px;">▶</button>
       </span>
       <span style="flex:1;"></span>
@@ -270,6 +270,7 @@ function kiChartModal(){
     if(e.target===o || e.target.closest('[data-ki-chart-zu]')){ kiChartSchliessen(); return; }
     if(!_kiChart) return;
     const bl = e.target.closest('[data-ki-blaettern]'); if(bl){ kiBlaettern(Number(bl.dataset.kiBlaettern)); return; }
+    if(e.target.closest('[data-ki-blaettern-start]')){ kiBlaettern(0, true); return; }
     if(e.target.closest('[data-ki-neu-tab]')){
       const c = _kiChart.ctx; const ziel = c.pos ? 'pos:'+c.posSym : (c.analyse ? 'ki:'+c.analyse.ticker : 'sym:'+c.sym);
       window.open(location.pathname + '#chart=' + encodeURIComponent(ziel) + '&tab=' + _kiTab + '&iv=' + (_kiChart.interval||'1mo'), '_blank', 'noopener');
@@ -539,6 +540,23 @@ function renderAktienChartSeite(){
     + (wl.length ? `<details style="margin-top:10px;"><summary class="muted" style="font-size:12px;cursor:pointer;">Watchlist (${wl.length}) – aufklappen</summary><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${wl.map(w=>knopf(w.ticker||w.symbol, w.name)).join('')}</div></details>` : '');
 }
 // Beliebige Aktie im Chart oeffnen: eigene Position (mit Kaeufen), sonst KI-Analyse falls vorhanden, sonst nur Kurs + Bewertung
+// Plausibilitaet der Bewertung (17.11.2026, nach Baidu: Fair Value 1.785 $ bei 71 $ Kurs). Werte ausserhalb dieser Grenzen kommen
+// praktisch nur von Datenfehlern (Waehrung, ADR-Verhaeltnis, veraltete oder falsch skalierte Zahlen) - dann rot warnen statt rechnen lassen.
+// Ergebnis steht zusaetzlich in window._kiLetzteBewertung (fuer die Pruefliste ueber Depot/Watchlist).
+function kiPlausibel(kurs, epsT, fv, ror, npe){
+  const g = [];
+  const kgv = epsT>0 && kurs>0 ? kurs/epsT : null;
+  if(kgv!=null && kgv < 3) g.push('KGV ' + kiNum(kgv,1) + ' (unter 3)');
+  if(kgv!=null && kgv > 300) g.push('KGV ' + kiNum(kgv,0) + ' (über 300)');
+  if(fv>0 && kurs>0 && fv/kurs > 5) g.push('Fair Value ' + kiNum(fv/kurs,1) + '-fach des Kurses');
+  if(fv>0 && kurs>0 && fv/kurs < 0.05) g.push('Fair Value unter 5 % des Kurses');
+  if(ror!=null && (ror > 60 || ror < -60)) g.push('erwartete Rendite ' + kiNum(ror,0) + ' % p. a.');
+  if(npe!=null && (npe < 2 || npe > 200)) g.push('Normal-KGV ' + kiNum(npe,1));
+  const c = _kiChart && _kiChart.ctx;
+  window._kiLetzteBewertung = {sym: c && c.sym, titel: c && c.titel, kgv, fvFaktor: fv>0 && kurs>0 ? fv/kurs : null, ror, npe, gruende: g, zeit: Date.now()};
+  if(!g.length) return '';
+  return `<div style="flex-basis:100%;border:2px solid #dc2626;border-radius:10px;padding:6px 12px;color:#dc2626;font-size:12.5px;font-weight:700;">⚠️ Bewertung unplausibel: ${escapeHtml(g.join(' · '))} – vermutlich ein Datenfehler (Währung, ADR-Verhältnis oder veraltete Zahlen). Nicht danach handeln.</div>`;
+}
 // ---- Durchblaettern (17.11.2026): Depot (Positionen nach Name), Watchlist, KI-Analysen ----
 // Jeder Eintrag: {sym: was kiChartSymbolOeffnen bekommt, keys: alle Schreibweisen zum Wiederfinden}.
 let _kiBlaetterLaeuft = false;
@@ -579,13 +597,13 @@ async function kiBlaetterAnzeige(){
   el.textContent = liste.length ? ((i >= 0 ? i+1 : '–') + ' / ' + liste.length) : 'leer';
   if(liste.length > 1 && i >= 0) kiBlaetterVorladen(liste[(i + 1) % liste.length]);
 }
-async function kiBlaettern(richtung){
+async function kiBlaettern(richtung, anfang){
   if(_kiBlaetterLaeuft) return;
   const q = document.getElementById('kiBlaetterQuelle')?.value || 'depot';
   const liste = await kiBlaetterListe(q);
   if(!liste.length){ toast('Die Liste „' + ({depot:'Depot', watchlist:'Watchlist', ki:'KI-Analysen'}[q]||q) + '“ ist leer.'); return; }
   const i = kiBlaetterIndex(liste);
-  const n = i < 0 ? (richtung > 0 ? 0 : liste.length-1) : (i + richtung + liste.length) % liste.length;
+  const n = anfang ? 0 : (i < 0 ? (richtung > 0 ? 0 : liste.length-1) : (i + richtung + liste.length) % liste.length);
   _kiBlaetterLaeuft = true;
   try{ await kiChartSymbolOeffnen(liste[n].sym); } finally{ _kiBlaetterLaeuft = false; }
 }
@@ -1283,7 +1301,11 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
     const box = document.createElement('div'); box.id = 'kiForecast';
     box.style.cssText = 'margin-top:14px;border-top:1px solid var(--border);padding-top:10px;';
     const knopf = (m, t)=>`<button type="button" class="range-btn${modus===m?' active':''}" data-ki-fc="${m}">${t}</button>`;
-    const zeile = (t, v, f)=>`<tr><td style="padding:3px 6px;">${f?`<span style="color:${f};">●</span> `:''}${t}</td><td style="padding:3px 6px;text-align:right;font-weight:700;width:86px;white-space:nowrap;">${v}</td></tr>`;
+    // art: 'punkt' (Punkt im Chart), 'linie' (durchgezogene Linie), 'duenn' (duenne Linie mit Punkten = Aktuelle Bewertung)
+    const zeichen = (f, art)=> art==='linie' ? `<span style="display:inline-block;width:16px;height:3px;background:${f};border-radius:2px;vertical-align:middle;margin-right:5px;"></span>`
+      : art==='duenn' ? `<span style="display:inline-block;width:16px;height:0;border-top:1.5px solid ${f};vertical-align:middle;margin-right:5px;position:relative;"><span style="position:absolute;left:5px;top:-3.5px;width:5px;height:5px;border-radius:50%;background:${f};"></span></span>`
+      : `<span style="color:${f};margin-right:4px;">●</span>`;
+    const zeile = (t, v, f, art)=>`<tr${f?` style="background:${f}14;"`:''}><td style="padding:3px 6px;${f?`border-left:3px solid ${f};`:''}">${f?zeichen(f, art||'punkt'):''}${t}</td><td style="padding:3px 6px;text-align:right;font-weight:700;width:86px;white-space:nowrap;">${v}</td></tr>`;
     box.innerHTML = `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;"><b style="font-size:15px;">Prognose</b>
         ${knopf('schaetzung','Schätzungen')}${knopf('normal','Normal-KGV 5 J.')}${knopf('lt','LT-Wachstum')}${knopf('hist','Hist. Wachstum')}${knopf('eigen','Eigene')}
         ${modus==='eigen' ? `<label style="font-size:11.5px;">Wachstum <input data-ki-fc-g type="text" inputmode="decimal" value="${kiNum(_kiFcEigen.g,1)}" style="width:46px;padding:1px 4px;"> %</label><label style="font-size:11.5px;">KGV <input data-ki-fc-pe type="text" inputmode="decimal" value="${kiNum(_kiFcEigen.pe,1)}" style="width:46px;padding:1px 4px;"></label>` : ''}
@@ -1296,12 +1318,12 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
             <div class="panel" style="flex:1;text-align:center;padding:8px;"><div style="font-size:19px;font-weight:800;color:${wachstum>=0?'#16a34a':'#dc2626'};">${kiNum(wachstum,2)} %</div><div class="muted" style="font-size:11px;">Wachstum p. a.</div></div>
           </div>
           <table style="width:100%;min-width:0;table-layout:fixed;font-size:12px;border-collapse:collapse;">
-            ${zeile('Normal-KGV', npe5 ? kiNum(npe5,2)+'×' : '–')}
-            ${zeile('Fair-Value-Faktor', kiNum(FVR,2)+'×')}
-            ${zeile('KGV gemischt', epsBlend>0 ? kiNum(kursJetzt/epsBlend,2)+'×' : '–')}
-            ${zeile('Kurs heute', kiNum(kursJetzt)+' '+escapeHtml(wKurs))}
+            ${zeile('Normal-KGV', npe5 ? kiNum(npe5,2)+'×' : '–', '#2563eb', 'linie')}
+            ${zeile('Fair-Value-Faktor', kiNum(FVR,2)+'×', '#ea580c', 'linie')}
+            ${zeile('KGV gemischt <span class="muted" style="font-size:10.5px;">(Aktuelle Bewertung)</span>', epsBlend>0 ? kiNum(kursJetzt/epsBlend,2)+'×' : '–', '#111111', 'duenn')}
+            ${zeile('Kurs heute', kiNum(kursJetzt)+' '+escapeHtml(wKurs), '#111111', 'linie')}
             ${zeile('Fair Value heute', kiNum(fvJetzt)+' '+escapeHtml(wKurs), '#ea580c')}
-            ${zeile('Kurs ' + ende.date.slice(0,7) + ' (' + kiNum(faktor,1) + '×)', kiNum(kursZiel)+' '+escapeHtml(wKurs), '#111')}
+            ${zeile('Kurs ' + ende.date.slice(0,7) + ' (' + kiNum(faktor,1) + '×)', kiNum(kursZiel)+' '+escapeHtml(wKurs), '#111111')}
             ${zeile('Dividenden bis dahin', kiNum(divSumme)+' '+escapeHtml(wKurs), '#eab308')}
           </table>
           <div class="muted" style="font-size:11px;margin-top:6px;">Rendite = (künftiger Kurs + Dividenden) ÷ Kurs heute, auf ${kiNum(jahreBis,1)} Jahre umgerechnet. Dividenden mit ${kiNum(divG,1)} % p. a. fortgeschrieben. Keine Anlageberatung.</div>
@@ -1377,6 +1399,7 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
     + kachel('Div.-Rendite', divT>0 ? kiNum(divT/kurs*100,2)+' %' : '–', f.payoutRatioPct!=null ? 'Ausschüttung '+kiNum(f.payoutRatioPct,0)+' %' : '')
     + kachel(`Fair Value (${kiNum(FVR,FVR%1?1:0)} × ${BN.kurz})`, fv!=null ? kiNum(fv) : '–', abw!=null ? (abw>=0 ? kiNum(abw,0)+' % überbewertet' : kiNum(-abw,0)+' % unterbewertet') : '', abw==null ? '' : (abw>10 ? '#dc2626' : (abw<-10 ? '#16a34a' : '')))
     + kachel('Erw. Rendite p. a.', ror!=null ? kiNum(ror,1)+' %' : '–', '5 Jahre, Normal-KGV')
+    + kiPlausibel(kurs, epsT, fv, ror, npe)
     + kachel(`Wachstum ${BN.kurz}`, isFinite(g) ? kiNum(g,1)+' %' : '–', 'pro Jahr');
   const zeilen = pkt.slice(-12);
   const zelle = (inhalt, extra='')=>`<td style="padding:2px 6px;text-align:right;${extra}">${inhalt}</td>`;
