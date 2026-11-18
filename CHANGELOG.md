@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.26 – 18.11.2026
+- Vergleichsunternehmen: zusätzlich Werte der gleichen Branche aus deinen Käufen und deiner Watchlist; Klick auf ein Symbol öffnet dessen Chart.
+- Hinweis auf Einmaleffekte: Gewinn je Aktie springt, Betriebsergebnis nicht – bzw. KGV der letzten 12 Monate weit unter dem erwarteten.
+
 ## 1.25 – 18.11.2026
 - Fitness: **Wachstum + Momentum** – Umsatz, EBITDA, EBIT, Gewinn/Cashflow/Dividende je Aktie gegen Vorjahr, 3/5/10 Jahre und Analystenerwartung; Kursentwicklung 1–12 Monate gegen den S&P 500.
 - Fitness: **Vergleichsunternehmen** – ähnliche Werte mit KGV, EV/EBITDA, Rendite, Wachstum, Margen, ROE und Median.

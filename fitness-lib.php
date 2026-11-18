@@ -265,7 +265,7 @@ function firmen_info($symbol) {
 
 // Vergleichsunternehmen (Nutzer 18.11.2026, nach Vorlage Seeking Alpha "Peers"): Yahoo "Personen schauten auch" (recommendationsbysymbol),
 // bis 5 Werte, je Wert firmen_info (24 h Cache). Liste selbst 7 Tage im Cache.
-function firmen_vergleich($symbol) {
+function firmen_vergleich($symbol, $kandidaten = []) {
     $dir = __DIR__ . '/data/cache/fitness';
     $datei = $dir . '/peers_' . preg_replace('/[^A-Z0-9.\-]/', '_', $symbol) . '.json';
     $liste = null;
@@ -289,8 +289,28 @@ function firmen_vergleich($symbol) {
     $zeile = function ($s) use ($felder) { $i = firmen_info($s); $z = ['symbol' => $s];
         if (!empty($i['fehler'])) { $z['fehler'] = $i['fehler']; return $z; }
         foreach ($felder as $f) $z[$f] = $i[$f] ?? null; return $z; };
-    $out = ['symbol' => $symbol, 'werte' => [$zeile($symbol)], 'quelle' => 'Yahoo (recommendationsbysymbol, quoteSummary)'];
+    $out = ['symbol' => $symbol, 'werte' => [$zeile($symbol)], 'quelle' => 'Yahoo (recommendationsbysymbol, quoteSummary)', 'offen' => 0];
     foreach ($liste as $s) $out['werte'][] = $zeile($s);
+    // Ergaenzung aus Depot/Watchlist (Nutzer 18.11.2026): Werte gleicher Branche. Branche je Symbol 90 Tage in branchen.json,
+    // unbekannte werden mit Zeitbudget 8 s nachgeschlagen (firmen_info, 24 h Cache) - der Rest kommt beim naechsten Aufruf ("offen").
+    $meine = $out['werte'][0]['branche'] ?? null;
+    if ($meine && $kandidaten) {
+        $bdatei = $dir . '/branchen.json';
+        $br = is_file($bdatei) ? (json_decode((string) file_get_contents($bdatei), true) ?: []) : [];
+        $start = microtime(true); $neu = false; $treffer = [];
+        foreach ($kandidaten as $s) {
+            if ($s === $symbol || in_array($s, $liste, true)) continue;
+            if (!isset($br[$s]) || time() - ($br[$s][1] ?? 0) > 90 * 86400) {
+                if (microtime(true) - $start > 8) { $out['offen']++; continue; }
+                $i = firmen_info($s);
+                if (!empty($i['fehler'])) { $br[$s] = ['', time() - 80 * 86400]; $neu = true; continue; }   // unbekannt: in 10 Tagen erneut
+                $br[$s] = [(string) ($i['branche'] ?? ''), time()]; $neu = true;
+            }
+            if ($br[$s][0] === $meine) $treffer[] = $s;
+        }
+        if ($neu) @file_put_contents($bdatei, json_encode($br), LOCK_EX);
+        foreach (array_slice($treffer, 0, 10) as $s) { $z = $zeile($s); $z['eigen'] = true; $out['werte'][] = $z; }
+    }
     return $out;
 }
 
