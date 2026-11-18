@@ -6,7 +6,7 @@
 // lokal, damit nicht bei jedem Seitenaufruf neu von dort geladen werden muss.
 
 define('DDB_SOURCE_URL', 'https://www.dripinvesting.org/wp-json/drip-investing/v1/stocks-dataset');
-define('DDB_CACHE_FILE', __DIR__ . '/data/dividend-database.json');
+define('DDB_CACHE_FILE', __DIR__ . '/data/dividend-database.v2.json');   // v2 (18.11.2026): Felder fuer das Big Board
 define('DDB_CACHE_MAX_AGE', 7 * 86400); // woechentlich (Sonntags-Cron haelt das ohnehin frisch)
 
 function ddb_map_row($r) {
@@ -27,6 +27,15 @@ function ddb_map_row($r) {
         'pe' => isset($r['pe']) ? (float) $r['pe'] : null,
         'peg' => isset($r['peg']) ? (float) $r['peg'] : null,
         'fvLynch' => isset($r['fv_lynch']) ? (float) $r['fv_lynch'] : null,
+        // Big Board nach Van Knapps Verfahren (Nutzer 18.11.2026): Qualitaet, Dividenden-Kraft, Bewertung - alles aus diesem freien Datensatz
+        'avgYield5y' => isset($r['avg_yield_5y']) ? (float) $r['avg_yield_5y'] : null,
+        'dgr1y' => isset($r['dgr_1y']) ? (float) $r['dgr_1y'] : null, 'dgr3y' => isset($r['dgr_3y']) ? (float) $r['dgr_3y'] : null,
+        'dgr5y' => isset($r['dgr_5y']) ? (float) $r['dgr_5y'] : null, 'dgr10y' => isset($r['dgr_10y']) ? (float) $r['dgr_10y'] : null,
+        'roe' => isset($r['roe']) ? (float) $r['roe'] : null, 'npm' => isset($r['npm']) ? (float) $r['npm'] : null,
+        'rotc' => isset($r['rotc']) ? (float) $r['rotc'] : null, 'debtCapital' => isset($r['debt_to_capital']) ? (float) $r['debt_to_capital'] : null,
+        'currentRatio' => isset($r['current_ratio']) ? (float) $r['current_ratio'] : null, 'cfPerShare' => isset($r['cf_per_share']) ? (float) $r['cf_per_share'] : null,
+        'revenue1y' => isset($r['revenue_1y']) ? (float) $r['revenue_1y'] : null, 'chowder' => isset($r['chowder']) ? (float) $r['chowder'] : null,
+        'payouts' => isset($r['payouts_per_year']) ? (int) $r['payouts_per_year'] : null, 'sp500' => !empty($r['sp500']),
     ];
 }
 

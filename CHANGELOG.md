@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.30 – 18.11.2026
+- Neu unter Watchlist & Filter: **Big Board je Sektor** – Dividendenwachstums-Werte nach dem Verfahren von Dave Van Knapp, nur mit freien Daten: Qualität (25 Punkte), Dividenden-Kraft (Rendite × Wachstum), Bewertung (Rendite gegen 5-Jahres-Schnitt und Normal-KGV) und „Best Bets“ ohne Warnfarbe.
+
 ## 1.29 – 18.11.2026
 - Dividenden-Liste jetzt mit allen vier Klassen: **Kings, Champions, Contenders, Challengers** – in der Bewertungsliste und zum Durchblättern.
 - Bewertungsliste: eigene Spalte **Liste** (👑 King, 🏆 Champion, 🥈 Contender, 🌱 Challenger); „Erhöhungen“ zeigt dort die genauen Jahre in Folge.

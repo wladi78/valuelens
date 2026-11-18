@@ -86,6 +86,20 @@ $vlV = rawurlencode(trim((string) @file_get_contents(__DIR__ . '/VERSION')));
         <div class="table-scroll"><table class="data-table" id="acListeTab"></table></div>
       </div>
     </div>
+    <div class="panel">
+      <div class="table-head"><h2>🏛️ Big Board – Dividendenwachstum je Sektor</h2>
+        <div class="zeile">
+          <select id="bbSektor"><option>Consumer Defensive</option><option>Utilities</option><option>Healthcare</option><option>Real Estate</option><option>Financial Services</option><option>Industrials</option><option>Energy</option><option>Technology</option><option>Basic Materials</option><option>Consumer Cyclical</option><option>Communication Services</option></select>
+          <label class="klein"><input type="checkbox" id="bbNurQ"> nur Qualität ≥ 15</label>
+          <label class="klein"><input type="checkbox" id="bbNurBest"> nur Best Bets</label>
+          <button class="btn primary" id="bbLaden" type="button">Sektor prüfen</button>
+        </div>
+      </div>
+      <div class="innen">
+        <div class="muted klein" id="bbInfo">Verfahren nach Dave Van Knapp, nur mit freien Daten: Qualität (Profitabilität, Finanzkraft, Dividendensicherheit, Erhöhungs-Historie, Wachstum – je 0–5, ab 15 investierbar), Dividenden-Kraft (Rendite × 5-J.-Wachstum) und Bewertung (Rendite gegen 5-J.-Schnitt, Kurs gegen Normal-KGV-Wert). Best Bet = Qualität ≥ 15 und nirgends orange. Zeile öffnet den Chart. Regelausgabe, keine Anlageberatung.</div>
+        <div class="table-scroll"><table class="data-table" id="bbTab"></table></div>
+      </div>
+    </div>
   </section>
 
   <!-- Eigene Kaeufe -->

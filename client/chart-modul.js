@@ -524,6 +524,101 @@ async function acListeLaden(){
   info.textContent = `${_acListe.length} Titel berechnet${ddbStand ? ' · Liste dripinvesting.org vom '+ddbStand+' (wöchentlich neu)' : ''} · Fair Value = Wert × ${kiNum(_kiFvr,1)} · grün = günstig (mehr als 10 % unter), rot = teuer · Spaltenkopf sortiert, Zeile öffnet den Chart.`;
   acListeZeichnen();
 }
+// ---- Big Board je Sektor (Nutzer 18.11.2026, Verfahren nach Dave Van Knapp "Dividends & Income Select", nur freie Daten) ----
+// Universum: Dividenden-Liste (dripinvesting, ab 5 Jahre Erhoehung). Je Titel:
+//  Qualitaet 0-25 (5 x 0-5): Profitabilitaet (ROE, Kapitalrendite, Nettomarge gegen Branchen-Massstab - wie seine DVK-Note,
+//   FCF-/op. Marge fehlen im Datensatz), Finanzkraft (Schulden/Kapital, Liquiditaet), Dividendensicherheit (Ausschuettung auf
+//   Gewinn und Cashflow), Erhoehungs-Historie (King 5 ... Challenger 2), Wachstum (DGR 5/10 J., letzte Erhoehung, Umsatz).
+//   Ab 15 Punkten "investierbar" (seine Grenze); Profitabilitaet F (0) scheidet aus.
+//  Dividenden-Kraft: Rendite x 5-J.-Wachstum (gruen/gelb/orange), orange auch, wenn die letzte Erhoehung < 50 % des 5-J.-Schnitts.
+//  Bewertung: Kurs/fairer Preis aus (1) Rendite gegen 5-J.-Schnittrendite (wie Simply Safe Dividends) und (2) Kurs gegen Wert
+//   beim Normal-KGV (eigene Bewertungsliste, statt Morningstar-DCF); < 0,90 gruen, bis 1,10 gelb, darueber orange.
+//  Best Bet = Qualitaet >= 15 und nirgends orange. Regelausgabe, keine Anlageberatung.
+const BB_MASS = {   // Branchen-Massstab je Sektor: ROE, Kapitalrendite (ROTC), Nettomarge in %
+  'Utilities':[9,5,10], 'Real Estate':[6,4,20], 'Financial Services':[11,0,18], 'Energy':[12,8,8], 'Consumer Defensive':[15,10,7],
+  'Industrials':[15,10,8], 'Healthcare':[15,10,10], 'Technology':[18,12,15], 'Basic Materials':[12,8,8], 'Consumer Cyclical':[15,10,7], 'Communication Services':[12,7,10]};
+let _bbZeilen = [], _bbSort = {k:'q', auf:false};
+function bbNote(r){ return r==null ? null : (r>=1.5 ? 5 : r>=1.1 ? 4 : r>=0.8 ? 3 : r>=0.5 ? 2 : 0); }
+function bbQualitaet(s){
+  const m = BB_MASS[s.sector] || [15,10,10], fin = s.sector==='Financial Services', reit = s.sector==='Real Estate', ver = s.sector==='Utilities';
+  const roeOk = s.roe!=null && s.roe>0 && s.roe<100;   // negatives/riesiges Eigenkapital verzerrt (CLX 534 %)
+  const noten = [roeOk ? bbNote(s.roe/m[0]) : null, (!fin && s.rotc!=null && m[1]) ? bbNote(s.rotc/m[1]) : null, s.npm!=null ? bbNote(s.npm/m[2]) : null].filter(v=>v!=null);
+  const prof = noten.length ? Math.round(noten.reduce((a,b)=>a+b,0)/noten.length) : null;
+  let finK = null;
+  if(fin) finK = 3;   // Schulden/Kapital bei Banken/Versicherern nicht aussagekraeftig
+  else if(s.debtCapital!=null){ const dc = s.debtCapital - ((ver||reit) ? 0.15 : 0); finK = dc<=0.3 ? 5 : dc<=0.45 ? 4 : dc<=0.6 ? 3 : dc<=0.75 ? 2 : 1;
+    if(!ver && !reit && s.currentRatio!=null && s.currentRatio<0.8) finK = Math.max(1, finK-1); }
+  const epsQ = s.divYield>0 && s.pe>0 ? s.divYield*s.pe/100 : null;              // Ausschuettung auf Gewinn
+  const cfQ = s.annualDividend>0 && s.cfPerShare>0 ? s.annualDividend/s.cfPerShare : null;   // auf op. Cashflow je Aktie
+  let sich = null; const q = (reit || fin) ? cfQ ?? epsQ : (cfQ!=null && epsQ!=null ? Math.max(cfQ, epsQ*0.6) : cfQ ?? epsQ);
+  if(q!=null) sich = q<=0.4 ? 5 : q<=0.55 ? 4 : q<=0.7 ? 3 : q<=0.85 ? 2 : q<=1.0 ? 1 : 0;
+  if(sich!=null && !reit && !ver && epsQ!=null && epsQ>1.2) sich = Math.max(0, sich-1);
+  const hist = {King:5, Champion:4, Contender:3, Challenger:2}[s.category] ?? null;
+  let wachs = 0; if(s.dgr5y>=8) wachs += 2; else if(s.dgr5y>=4) wachs += 1;
+  if(s.dgr10y>=6) wachs += 1; if(s.dgr1y!=null && s.dgr5y>0 && s.dgr1y >= 0.5*s.dgr5y) wachs += 1; if(s.revenue1y>0) wachs += 1;
+  wachs = Math.min(5, wachs);
+  const teile = [prof, finK, sich, hist, wachs];
+  return {prof, finK, sich, hist, wachs, summe: teile.reduce((a,b)=>a+(b||0),0), fehlt: teile.filter(v=>v==null).length, aus: prof===0, epsQ, cfQ};
+}
+function bbKraft(s){
+  const y = s.divYield, g = s.dgr5y; if(y==null || g==null) return {farbe:null};
+  // Mindestwachstum je Renditestufe fuer gruen / gelb (eigene Umsetzung seiner Matrix: niedrige Rendite braucht schnelles Wachstum)
+  const stufe = y>=6 ? [0,-1] : y>=4 ? [2,0] : y>=3 ? [5,3] : y>=2 ? [8,4] : y>=1 ? [12,8] : [15,12];   // 2-3 %: ab 4 % gelb (PG 2,6 %/4,9 %, Abgleich mit Van Knapp 16.11.2026)
+  let farbe = g>=stufe[0] ? 'gruen' : g>=stufe[1] ? 'gelb' : 'orange';
+  const bremse = s.dgr1y!=null && s.dgr5y>0 && s.dgr1y < 0.5*s.dgr5y;
+  if(bremse) farbe = 'orange';
+  return {farbe, bremse};
+}
+async function bbLaden(){
+  const sel = document.getElementById('bbSektor'), info = document.getElementById('bbInfo'), knopf = document.getElementById('bbLaden');
+  if(!sel) return;
+  const j = await kiDdbLaden();
+  const st = (j.stocks||[]).filter(s=>s.sector===sel.value);
+  _bbZeilen = st.map(s=>{ const q = bbQualitaet(s), k = bbKraft(s); const r1 = s.divYield>0 && s.avgYield5y>0 ? s.avgYield5y/s.divYield : null;
+    return {s, sym: kiDdbSym(s), q, k, r1, r2: null, laedt: true}; });
+  bbZeichnen();
+  knopf.disabled = true; let fertig = 0;
+  // Bewertung (2) nur fuer Titel mit Qualitaet >= 15 - die anderen scheiden ohnehin aus (spart SEC-Abrufe)
+  const offen = _bbZeilen.filter(z=>z.q.summe>=15 && !z.q.aus); _bbZeilen.forEach(z=>{ if(!offen.includes(z)) z.laedt = false; });
+  const arbeiter = async ()=>{ while(offen.length){ const z = offen.shift();
+    try{ const b = await acBewertungZeile(z.sym, z.s.name, z.s.sector); if(b && b.abwN!=null && isFinite(b.abwN)) z.r2 = 1 + b.abwN/100; z.basis = b && b.basis; } catch(e){}
+    z.laedt = false; fertig++; info.textContent = `Bewerte … ${fertig} von ${fertig+offen.length}`; if(fertig%4===0) bbZeichnen(); } };
+  await Promise.all([arbeiter(), arbeiter(), arbeiter()]);
+  knopf.disabled = false;
+  const stand = j.updatedAt ? String(j.updatedAt).slice(0,10).split('-').reverse().join('.') : '';
+  info.textContent = `${sel.value}: ${_bbZeilen.length} Dividendenwerte (ab 5 J. Erhöhung, dripinvesting.org vom ${stand}) · ${_bbZeilen.filter(bbBestBet).length} Best Bets · Regelausgabe, keine Anlageberatung.`;
+  bbZeichnen();
+}
+function bbPfp(z){ const w = [z.r1, z.r2].filter(v=>v!=null && isFinite(v) && v>0); return w.length ? w.reduce((a,b)=>a+b,0)/w.length : null; }
+function bbFarbeBew(p){ return p==null ? null : p<0.9 ? 'gruen' : p<=1.1 ? 'gelb' : 'orange'; }
+function bbBestBet(z){ const p = bbPfp(z); return z.q.summe>=15 && !z.q.aus && z.k.farbe && z.k.farbe!=='orange' && p!=null && bbFarbeBew(p)!=='orange' && z.r2!=null; }
+function bbZeichnen(){
+  const tab = document.getElementById('bbTab'); if(!tab) return;
+  const nurBest = document.getElementById('bbNurBest')?.checked, nurQ = document.getElementById('bbNurQ')?.checked;
+  const FB = {gruen:'background:rgba(22,163,74,.16);', gelb:'background:rgba(234,179,8,.18);', orange:'background:rgba(234,88,12,.20);'};
+  let l = _bbZeilen.filter(z=>(!nurBest || bbBestBet(z)) && (!nurQ || (z.q.summe>=15 && !z.q.aus)));
+  const wert = (z,k)=>({sym:z.sym, q:z.q.summe, y:z.s.divYield, g5:z.s.dgr5y, g1:z.s.dgr1y, pfp:bbPfp(z), kat:z.s.category})[k];
+  const {k, auf} = _bbSort;
+  l = l.slice().sort((a,b)=>{ const x = wert(a,k), y = wert(b,k); if(x==null && y==null) return 0; if(x==null) return 1; if(y==null) return -1; return (typeof x==='string' ? x.localeCompare(y) : x-y)*(auf?1:-1); });
+  const n = (v,d=1)=>v==null || !isFinite(v) ? '–' : kiNum(v,d);
+  const qf = z=>z.q.aus ? 'orange' : z.q.summe>=20 ? 'gruen' : z.q.summe>=15 ? 'gelb' : 'orange';
+  const sp = [['sym','Symbol'],['','Name'],['kat','Liste'],['q','Qualität (P·F·S·H·W)'],['y','Rendite'],['g5','DGR 5 J.'],['g1','Letzte Erh.'],['','Div.-Kraft'],['','Rendite ÷ 5-J.-Ø'],['','Kurs ÷ Normal-KGV-Wert'],['pfp','Kurs ÷ fairer Preis'],['','Fairer Preis'],['','Best Bet']];
+  tab.innerHTML = `<thead><tr>${sp.map(([s2,t])=>`<th ${s2?`data-bb-sort="${s2}" style="cursor:pointer;white-space:nowrap;"`:'style="white-space:nowrap;"'}>${t}${s2 && _bbSort.k===s2?(auf?' ▲':' ▼'):''}</th>`).join('')}</tr></thead><tbody>`
+    + l.map(z=>{ const p = bbPfp(z), fb = bbFarbeBew(p), q = z.q, s = z.s;
+      return `<tr data-bb-sym="${escapeHtml(z.sym)}" style="cursor:pointer;"><td><b>${escapeHtml(z.sym)}</b></td><td>${escapeHtml(String(s.name||'').slice(0,26))}</td><td style="white-space:nowrap;">${escapeHtml(KI_DDB_ZEICHEN[s.category]||s.category||'')}</td>
+        <td style="${FB[qf(z)]}white-space:nowrap;" title="Profitabilität ${q.prof??'–'} · Finanzkraft ${q.finK??'–'} · Dividendensicherheit ${q.sich??'–'} (Ausschüttung Gewinn ${q.epsQ!=null?kiNum(q.epsQ*100,0)+' %':'–'}, Cashflow ${q.cfQ!=null?kiNum(q.cfQ*100,0)+' %':'–'}) · Historie ${q.hist??'–'} · Wachstum ${q.wachs}"><b>${q.summe}</b> <span class="muted">(${[q.prof,q.finK,q.sich,q.hist,q.wachs].map(v=>v??'–').join('·')})</span>${q.aus?' ✖':''}</td>
+        <td>${n(s.divYield,2)} %</td><td>${n(s.dgr5y)} %</td><td>${n(s.dgr1y)} %</td>
+        <td style="${FB[z.k.farbe]||''}">${z.k.farbe==='gruen'?'stark':z.k.farbe==='gelb'?'gut':z.k.farbe==='orange'?(z.k.bremse?'Bremse':'schwach'):'–'}</td>
+        <td style="${FB[bbFarbeBew(z.r1)]||''}" title="5-J.-Ø-Rendite ${n(s.avgYield5y,2)} % ÷ heute ${n(s.divYield,2)} % (unter 1 = günstiger als sonst)">${z.r1!=null?kiNum(z.r1,2):'–'}</td>
+        <td style="${FB[bbFarbeBew(z.r2)]||''}" title="${escapeHtml(z.basis||'')}">${z.laedt?'…':(z.r2!=null?kiNum(z.r2,2):'–')}</td>
+        <td style="${FB[fb]||''}"><b>${p!=null?kiNum(p,2):'–'}</b></td><td>${p && s.price ? kiNum(s.price/p,2) : '–'}</td><td style="text-align:center;">${bbBestBet(z)?'✅':''}</td></tr>`; }).join('') + `</tbody>`;
+}
+document.addEventListener('click', e=>{
+  if(e.target.closest('#bbLaden')){ bbLaden(); return; }
+  const th = e.target.closest('[data-bb-sort]'); if(th){ const k = th.dataset.bbSort; _bbSort = {k, auf: _bbSort.k===k ? !_bbSort.auf : (k==='sym'||k==='pfp')}; bbZeichnen(); return; }
+  const r = e.target.closest('[data-bb-sym]'); if(r){ kiTabSetzen('bewertung'); kiChartSymbolOeffnen(r.dataset.bbSym); }
+});
+document.addEventListener('change', e=>{ if(e.target && (e.target.id==='bbNurBest' || e.target.id==='bbNurQ')) bbZeichnen(); });
 function renderAktienChartSeite(){
   const inp = document.getElementById('acSymbol'); if(!inp) return;
   if(!inp.dataset.verbunden){
