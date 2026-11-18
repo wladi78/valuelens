@@ -200,7 +200,7 @@ function kiChartModal(){
       <span style="display:inline-flex;align-items:center;gap:4px;" title="Liste waehlen und mit ◀ ▶ (oder den Pfeiltasten) Aktie fuer Aktie durchgehen">
         <select id="kiBlaetterQuelle" style="padding:4px 6px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:12.5px;">
           <option value="depot">Meine Käufe</option><option value="watchlist">Watchlist</option>
-          <option value="ddb_king">Dividend Kings</option><option value="ddb_champion">Dividend Champions</option><option value="ddb_alle">Dividenden-Liste (alle)</option>
+          <option value="ddb_king">Dividend Kings</option><option value="ddb_champion">Dividend Champions</option><option value="ddb_contender">Dividend Contenders</option><option value="ddb_challenger">Dividend Challengers</option><option value="ddb_alle">Dividenden-Liste (alle)</option>
         </select>
         <button type="button" class="btn ghost" data-ki-blaettern="-1" title="Vorherige Aktie (Pfeil links)" style="padding:4px 10px;">◀</button>
         <span id="kiBlaetterPos" data-ki-blaettern-start="1" class="muted" title="Stelle in der Liste – Klick springt an den Anfang (1)" style="font-size:12px;min-width:46px;text-align:center;cursor:pointer;text-decoration:underline dotted;">–</span>
@@ -492,13 +492,13 @@ function acListeZeichnen(){
   let l = _acListe.filter(z=>!f || (F[f] && !z.fehler && F[f](z)));
   const {k, auf} = _acSort;
   l = l.slice().sort((a,b)=>{ const x = a[k], y = b[k]; if(x==null && y==null) return 0; if(x==null) return 1; if(y==null) return -1; return (typeof x==='string' ? x.localeCompare(y) : x-y) * (auf?1:-1); });
-  const spalten = [['sym','Symbol'],['name','Name'],['basis','Bewertet nach'],['kurs','Kurs'],['kgv','KGV'],['fv','Fair Value'],['abw','Kurs vs. FV'],['npe','Normal-KGV'],['normWert','Wert bei Normal'],['abwN','Kurs vs. Normal'],['g','Wachstum'],['ror','Erw. Rendite p. a.'],['divR','Div.-Rendite'],['folge','Erhöhungen'],['roe','ROE'],['ldk','Schulden/Kap.'],['fcfDiv5','FCF/Div. 5J'],['kaufPct','Kaufempf.']];
+  const spalten = [['sym','Symbol'],['name','Name'],['kat','Liste'],['basis','Bewertet nach'],['kurs','Kurs'],['kgv','KGV'],['fv','Fair Value'],['abw','Kurs vs. FV'],['npe','Normal-KGV'],['normWert','Wert bei Normal'],['abwN','Kurs vs. Normal'],['g','Wachstum'],['ror','Erw. Rendite p. a.'],['divR','Div.-Rendite'],['folge','Erhöhungen'],['roe','ROE'],['ldk','Schulden/Kap.'],['fcfDiv5','FCF/Div. 5J'],['kaufPct','Kaufempf.']];
   const pr = v=> v==null ? '–' : `<span class="${v<-10?'pos':(v>10?'neg':'')}">${v>0?'+':''}${kiNum(v,0)} %</span>`;
   tab.innerHTML = `<thead><tr>${spalten.map(([s2,t])=>`<th data-ac-sort="${s2}" style="cursor:pointer;white-space:nowrap;">${t}${_acSort.k===s2?(auf?' ▲':' ▼'):''}</th>`).join('')}</tr></thead><tbody>${l.map(z=>`<tr data-ac-sym="${escapeHtml(z.sym)}" style="cursor:pointer;">
-    <td><b>${escapeHtml(z.sym)}</b></td><td>${escapeHtml((z.name||'').slice(0,28))}</td>
+    <td><b>${escapeHtml(z.sym)}</b></td><td>${escapeHtml((z.name||'').slice(0,28))}</td><td style="white-space:nowrap;">${z.kat ? escapeHtml(KI_DDB_ZEICHEN[z.kat]||z.kat) : '–'}</td>
     ${z.fehler ? `<td colspan="16" class="muted">${escapeHtml(z.fehler)}</td>` : `<td>${escapeHtml(z.basis||'')}${z.einbruch!=null?` <span title="Letzter Wert ${z.einbruch} % unter dem Median der 3 Vorjahre – meist Sonderlasten. Bewertung unsicher, im Chart prüfen." style="color:#d97706;cursor:help;">⚠ ${z.einbruch} %</span>`:''}${z.fx?` <span class="muted" title="aus ${escapeHtml(z.fx)} umgerechnet">(${escapeHtml(z.fx)})</span>`:''}</td><td>${kiNum(z.kurs)}</td><td>${z.bank ? `<span title="Kurs-Buchwert-Verhältnis (Bank)">KBV ${kiNum(z.kbv,2)}</span>` : (z.kgv!=null?kiNum(z.kgv,1):'–')}</td><td>${z.fv!=null?kiNum(z.fv):'–'}</td><td>${pr(z.abw)}</td>
     <td>${z.bank ? `<span title="${escapeHtml(acBankTitel(z.bank))}" style="cursor:help;">KBV ${z.npe!=null?kiNum(z.npe,2):'–'}</span>` : (z.npe!=null?kiNum(z.npe,1):'–')}</td><td>${z.normWert!=null?kiNum(z.normWert):'–'}</td><td>${pr(z.abwN)}</td><td>${z.g!=null&&isFinite(z.g)?kiNum(z.g,1)+' %':'–'}</td>
-    <td class="${z.ror==null?'':(z.ror>=10?'pos':(z.ror<0?'neg':''))}">${z.ror!=null?kiNum(z.ror,1)+' %':'–'}</td><td>${z.divR?kiNum(z.divR,2)+' %':'–'}</td><td>${z.folge||0}</td><td class="${z.roe==null?'':(z.roe>=15?'pos':(z.roe<5?'neg':''))}" title="Gewinn ÷ Ø Eigenkapital (4 Quartale)">${z.roe!=null?kiNum(z.roe,1)+' %':'–'}</td><td class="${z.ldk==null?'':(z.ldk<=50?'pos':(z.ldk>80?'neg':''))}" title="Langfr. Schulden ÷ (Schulden + Eigenkapital), letztes Quartal">${z.ldk!=null?kiNum(z.ldk,0)+' %':'–'}</td><td class="${z.fcfDiv5==null?'':(z.fcfDiv5>=1.2?'pos':(z.fcfDiv5<1?'neg':''))}" title="Free Cashflow ÷ gezahlte Dividenden, Summe 5 Jahre (≥ 1 = gedeckt)">${z.fcfDiv5!=null?kiNum(z.fcfDiv5,2)+'×':'–'}</td><td class="${z.kaufPct==null?'':(z.kaufPct>=60?'pos':(z.kaufPct<30?'neg':''))}" title="Anteil Kaufempfehlungen (stark kaufen + kaufen) der Analysten, Yahoo">${z.kaufPct!=null?kiNum(z.kaufPct,0)+' % <span class="muted">('+z.kaufN+')</span>':'–'}</td>`}</tr>`).join('')}</tbody>`;
+    <td class="${z.ror==null?'':(z.ror>=10?'pos':(z.ror<0?'neg':''))}">${z.ror!=null?kiNum(z.ror,1)+' %':'–'}</td><td>${z.divR?kiNum(z.divR,2)+' %':'–'}</td><td${z.folgeSA?' title="Jahre in Folge erhöht, stockanalysis.com"':''}>${z.folge||0}</td><td class="${z.roe==null?'':(z.roe>=15?'pos':(z.roe<5?'neg':''))}" title="Gewinn ÷ Ø Eigenkapital (4 Quartale)">${z.roe!=null?kiNum(z.roe,1)+' %':'–'}</td><td class="${z.ldk==null?'':(z.ldk<=50?'pos':(z.ldk>80?'neg':''))}" title="Langfr. Schulden ÷ (Schulden + Eigenkapital), letztes Quartal">${z.ldk!=null?kiNum(z.ldk,0)+' %':'–'}</td><td class="${z.fcfDiv5==null?'':(z.fcfDiv5>=1.2?'pos':(z.fcfDiv5<1?'neg':''))}" title="Free Cashflow ÷ gezahlte Dividenden, Summe 5 Jahre (≥ 1 = gedeckt)">${z.fcfDiv5!=null?kiNum(z.fcfDiv5,2)+'×':'–'}</td><td class="${z.kaufPct==null?'':(z.kaufPct>=60?'pos':(z.kaufPct<30?'neg':''))}" title="Anteil Kaufempfehlungen (stark kaufen + kaufen) der Analysten, Yahoo">${z.kaufPct!=null?kiNum(z.kaufPct,0)+' % <span class="muted">('+z.kaufN+')</span>':'–'}</td>`}</tr>`).join('')}</tbody>`;
 }
 async function acListeLaden(){
   const umfang = document.getElementById('acListeUmfang').value;
@@ -508,12 +508,16 @@ async function acListeLaden(){
   if(umfang==='ki'){ if(!_ki.geladen) await kiLaden(); (_ki.analysen||[]).forEach(a=>m.set(kiSymbol(a), [a.name, (a.ddb&&a.ddb.sector)||''])); }
   let ddbStand = '';
   if(umfang.startsWith('ddb_')){ const j = await kiDdbLaden(); ddbStand = j.updatedAt ? String(j.updatedAt).slice(0,10).split('-').reverse().join('.') : '';
-    kiDdbFilter(j.stocks, umfang).forEach(s=>m.set(kiDdbSym(s), [`${s.name||s.symbol} · ${s.category==='King'?'👑 King':'🏆 Champion'}`, s.sector||''])); }
+    kiDdbFilter(j.stocks, umfang).forEach(s=>m.set(kiDdbSym(s), [s.name||s.symbol, s.sector||'', s.category||''])); }
   const liste = [...m]; _acListe = [];
   const info = document.getElementById('acListeInfo'), knopf = document.getElementById('acListeLaden');
   knopf.disabled = true;
   let fertig = 0;
-  const arbeiter = async ()=>{ while(liste.length){ const [sym, [name, sek]] = liste.shift(); try{ _acListe.push(await acBewertungZeile(sym, name, sek)); } catch(e){ _acListe.push({sym, name, fehler:e.message}); }
+  const arbeiter = async ()=>{ while(liste.length){ const [sym, [name, sek, kat]] = liste.shift(); try{ const z = await acBewertungZeile(sym, name, sek);
+        if(kat){ z.kat = kat;
+          // Dividenden-Liste: Jahre in Folge genau (stockanalysis) statt aus der Yahoo-Historie gezaehlt (O: 9 statt 30, Nutzer 18.11.2026)
+          try{ const h = await fetch('dividend-history.php?symbol=' + encodeURIComponent(sym), {cache:'no-store'}).then(r=>r.json()); const st = h && h.meta ? Number(h.meta.streakYears) : NaN; if(isFinite(st) && st>0){ z.folge = st; z.folgeSA = true; } } catch(e){} }
+        _acListe.push(z); } catch(e){ _acListe.push({sym, name, kat, fehler:e.message}); }
     fertig++; info.textContent = `Berechne … ${fertig} von ${m.size}`; if(fertig%5===0) acListeZeichnen(); } };
   await Promise.all([arbeiter(), arbeiter(), arbeiter()]);
   knopf.disabled = false;
@@ -557,7 +561,7 @@ const KI_SONDERFAELLE = {
   BEPC: 'Brookfield Renewable Corp. führt die eigenen Aktien als Verbindlichkeit – der GAAP-Gewinn schwankt mit dem eigenen Kurs. Bewertung besser über FFO je Einheit der Partnerschaft BEP und die Dividendenrendite.',
 };
 function kiSonderfall(sym){ const s = String(sym||'').toUpperCase().split('.')[0]; return KI_SONDERFAELLE[s] || null; }
-function kiPlausibel(kurs, epsT, fv, ror, npe){
+function kiPlausibel(kurs, epsT, fv, ror, npe, schaetz){
   const g = [], sonder = [];
   const kgv = epsT>0 && kurs>0 ? kurs/epsT : null;
   if(kgv!=null && kgv < 3) g.push('KGV ' + kiNum(kgv,1) + ' (unter 3)');
@@ -572,6 +576,9 @@ function kiPlausibel(kurs, epsT, fv, ror, npe){
   const sf = kiSonderfall(c && (c.sym || c.posSym));
   if(sf) return kasten('#d97706', `⚠️ Sonderfall – KGV und Fair Value hier nicht aussagekräftig: ${escapeHtml(sf)}`);
   if(g.length) return kasten('#dc2626', `⚠️ Bewertung unplausibel: ${escapeHtml(g.concat(sonder).join(' · '))} – vermutlich ein Datenfehler (Währung, ADR-Verhältnis oder veraltete Zahlen). Nicht danach handeln.`);
+  // Einmaleffekt (Nutzer 18.11.2026, MKC: Gewinn durch Konsolidierung McCormick de Mexico verdoppelt): KGV 12 M weit unter KGV erwartet
+  const s0 = (schaetz||[])[0], kgvE = s0 && s0.eps>0 && kurs>0 ? kurs/s0.eps : null;
+  if(!sonder.length && kgv!=null && kgvE!=null && kgv < 0.6*kgvE) return kasten('#d97706', `⚠️ KGV der letzten 12 Monate (${kiNum(kgv,1)}×) weit unter dem erwarteten (${kiNum(kgvE,1)}×) – der Gewinn enthält vermutlich einen Einmaleffekt (Verkaufs-/Bewertungsgewinn, Übernahme). Fair Value auf dieser Basis zu hoch; das erwartete KGV ist aussagekräftiger.`);
   if(sonder.length) return kasten('#d97706', `⚠️ Kennzahl außerhalb des üblichen Bereichs: ${escapeHtml(sonder.join(' · '))} – die Schätzung hängt an sehr hohem Gewinnwachstum oder an einem Normal-KGV aus Jahren mit kaum Gewinn. Als Richtwert ungeeignet.`);
   return '';
 }
@@ -583,7 +590,9 @@ let _kiBlaetterLaeuft = false;
 // Contender = 10-24, Challenger = 5-9. Klassen-Aktien mit Punkt (BRK.B) heissen bei Yahoo mit Bindestrich.
 let _kiDdb = null;
 function kiDdbLaden(){ if(!_kiDdb) _kiDdb = fetch('dividend-database.php', {cache:'no-store'}).then(r=>r.json()).then(j=>(j && Array.isArray(j.stocks)) ? j : {stocks:[]}).catch(()=>{ _kiDdb = null; return {stocks:[]}; }); return _kiDdb; }
-function kiDdbFilter(stocks, art){ return (stocks||[]).filter(s=>art==='ddb_king' ? s.category==='King' : art==='ddb_champion' ? s.category==='Champion' : art==='ddb_kc' ? (s.category==='King' || s.category==='Champion') : true); }
+const KI_DDB_KLASSE = {ddb_king:['King'], ddb_champion:['Champion'], ddb_kc:['King','Champion'], ddb_contender:['Contender'], ddb_challenger:['Challenger']};
+const KI_DDB_ZEICHEN = {King:'👑 King', Champion:'🏆 Champion', Contender:'🥈 Contender', Challenger:'🌱 Challenger'};
+function kiDdbFilter(stocks, art){ const k = KI_DDB_KLASSE[art]; return (stocks||[]).filter(s=>!k || k.includes(s.category)); }
 function kiDdbSym(s){ return String(s.symbol||'').toUpperCase().replace(/\./g, '-'); }
 async function kiBlaetterListe(quelle){
   const gross = x => String(x||'').toUpperCase();
@@ -1844,7 +1853,7 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
     const kk = document.getElementById('kiChartKacheln');
     let w = document.getElementById('kiPlausiWarn');
     if(!w && kk){ w = document.createElement('div'); w.id = 'kiPlausiWarn'; kk.after(w); }
-    if(w) w.innerHTML = kiPlausibel(kurs, epsT, fv, ror, npe);
+    if(w) w.innerHTML = kiPlausibel(kurs, epsT, fv, ror, npe, rh && rh.schaetzung);
   }
   const kach = document.getElementById('kiKachelBew');
   if(kach) kach.innerHTML = kachel(score[1], score[0], '')

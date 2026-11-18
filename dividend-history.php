@@ -23,6 +23,9 @@ if ($symbol === '') {
     exit;
 }
 
+// Zwischenspeicher 7 Tage (18.11.2026: die Dividenden-Listen fragen je Titel die Jahre in Folge ab)
+$dhDatei = __DIR__ . '/data/cache/divhist/' . preg_replace('/[^A-Za-z0-9.\-]/', '_', strtoupper($symbol)) . '.json';
+if (is_file($dhDatei) && time() - filemtime($dhDatei) < 7 * 86400) { readfile($dhDatei); exit; }
 $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 $url = 'https://stockanalysis.com/api/symbol/s/' . rawurlencode($symbol) . '/dividend';
 
@@ -88,4 +91,7 @@ $meta = [
     'frequency' => saField($info['frequency'] ?? null),
 ];
 
-echo json_encode(['symbol' => $symbol, 'currency' => $currency, 'dividends' => $rows, 'meta' => $meta]);
+$dhAus = json_encode(['symbol' => $symbol, 'currency' => $currency, 'dividends' => $rows, 'meta' => $meta]);
+if (!is_dir(dirname($dhDatei))) @mkdir(dirname($dhDatei), 0700, true);
+@file_put_contents($dhDatei, $dhAus, LOCK_EX);
+echo $dhAus;

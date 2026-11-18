@@ -1,5 +1,11 @@
 # Änderungen
 
+## 1.29 – 18.11.2026
+- Dividenden-Liste jetzt mit allen vier Klassen: **Kings, Champions, Contenders, Challengers** – in der Bewertungsliste und zum Durchblättern.
+- Bewertungsliste: eigene Spalte **Liste** (👑 King, 🏆 Champion, 🥈 Contender, 🌱 Challenger); „Erhöhungen“ zeigt dort die genauen Jahre in Folge.
+- Warnung vor Einmaleffekten jetzt auch im Reiter Bewertung.
+- Eingabefelder werden nicht mehr vom Browser mit der Login-Mail vorbefüllt.
+
 ## 1.28 – 18.11.2026
 - **Dividend Kings und Champions** (Liste von dripinvesting.org, wöchentlich neu): in der Bewertungsliste als Auswahl „Dividend Kings“, „Dividend Champions“ oder beide – und im Chart zum Durchblättern mit ◀ ▶ (auch die ganze Liste mit Contendern und Challengern).
 

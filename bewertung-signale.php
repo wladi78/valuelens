@@ -35,6 +35,13 @@ foreach ($d['watchlist'] ?? [] as $w) {
     if ($s && !isset($titel[$s])) $titel[$s] = [$w['sector'] ?? '', 'Watchlist', $w['name'] ?? ''];
 }
 
+// Dividenden-Liste dripinvesting (alle Klassen, woechentlich neu) direkt - war bis 18.11.2026 nur ueber den Watchlist-Import drin
+require_once __DIR__ . '/dividend-database-lib.php';
+foreach (ddb_get()['stocks'] ?? [] as $r) {
+    $s = str_replace('.', '-', strtoupper((string) ($r['symbol'] ?? '')));
+    if ($s !== '' && !isset($titel[$s])) $titel[$s] = [$r['sector'] ?? '', 'Dividenden-Liste (' . ($r['category'] ?? '') . ')', $r['name'] ?? ''];
+}
+
 $treffer = []; $fehler = 0; $n = 0; $bankFv = [];
 // Finanzielle Fitness fuer die Bewertungsliste vorbereiten (Filter ROE, Schulden/Kapital, FCF deckt Dividende; Nutzer 13.11.2026):
 // SEC-Jahresberichte je US-Titel, Speicher 7 Tage - nachts hoechstens 120 auffrischen, damit der Lauf nicht ausufert

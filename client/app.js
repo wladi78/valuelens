@@ -356,6 +356,11 @@ async function valueLensStart(){
   if(!VL_WEB) setTimeout(()=>{ vlUpdatePruefen(vlAutoUpdate() ? 'auto' : upTag!==heute); try{ localStorage.setItem('valuelens_updatetag', heute); } catch(e){} }, 3000);
   const au = document.getElementById('upAuto'); if(au){ au.checked = vlAutoUpdate(); au.addEventListener('change', ()=>{ try{ localStorage.setItem('valuelens_autoupdate', au.checked ? '1' : '0'); } catch(e){} }); }
   document.getElementById('upPruefen')?.addEventListener('click', ()=>vlUpdatePruefen(true));
+  // Chrome-Passwortmanager fuellt Textfelder mit der Login-Mail (ignoriert autocomplete) - Felder bis zum Fokus schreibgeschuetzt,
+  // und eine eingesetzte Mailadresse wieder leeren (Nutzer 18.11.2026)
+  ['wlSymbol','wlName','kfSymbol','acSymbol'].forEach(id=>{ const f = document.getElementById(id); if(!f) return;
+    f.readOnly = true; f.addEventListener('focus', ()=>{ f.readOnly = false; });
+    [300, 1500, 4000].forEach(ms=>setTimeout(()=>{ if(/@/.test(f.value)) f.value = ''; }, ms)); });
 }
 
 // Start ohne Inline-Skript (CSP): nach dem Laden aller Skripte
