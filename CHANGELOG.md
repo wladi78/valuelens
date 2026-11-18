@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.32 – 18.11.2026
+- Big Board: Kennzeichnung und Filter für Werte in den State-Street-Sektor-ETFs (XLP, XLU …) – wöchentlich von ssga.com.
+
 ## 1.31 – 18.11.2026
 - Big Board nach allen Sektor-Artikeln von Dave Van Knapp abgeglichen: Auswahl auch nach Versicherungen, Banken, Kings, Rendite ≥ 2,5 %, Qualität ≥ 22 und „nur S&P 500“; Spalte Analysten (5 = Kauf); Sonderdividenden werden erkannt; eine Kennzahl mit 0 Punkten scheidet aus.
 - Das Big Board wird jetzt im Nachtlauf gerechnet und erscheint sofort.

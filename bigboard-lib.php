@@ -105,6 +105,41 @@ function bb_fmp_dcf(string $sym, &$gesperrt) {
     return $dcf;
 }
 
+// Bestand der State-Street-Sektor-ETFs (XLP, XLU ...) - damit startet Van Knapp jeden Sektor-Artikel ("XLP has 34 companies").
+// Frei als Excel bei ssga.com, woechentlich geholt. Ergebnis: Symbol => ETF. Ohne ZipArchive oder bei Fehler: alter Stand bzw. leer.
+const BB_ETFS = ['XLP', 'XLU', 'XLV', 'XLRE', 'XLF', 'XLI', 'XLE', 'XLK', 'XLB', 'XLY', 'XLC'];
+function bb_sektor_etfs(): array {
+    $f = __DIR__ . '/data/cache/sektor-etfs.json';
+    $alt = json_decode((string) @file_get_contents($f), true) ?: [];
+    if (!empty($alt['mitglieder']) && strtotime($alt['stand'] ?? '2000-01-01') > time() - 7 * 86400) return $alt['mitglieder'];
+    if (!class_exists('ZipArchive') || !function_exists('curl_init')) return $alt['mitglieder'] ?? [];
+    $m = []; $anz = [];
+    foreach (BB_ETFS as $etf) {
+        $ch = curl_init('https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-' . strtolower($etf) . '.xlsx');
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => 20, CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; Capolio/1.0)']);
+        $body = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+        if ($code !== 200 || !$body || substr($body, 0, 2) !== 'PK') continue;
+        $tmp = tempnam(sys_get_temp_dir(), 'etf'); file_put_contents($tmp, $body);
+        $z = new ZipArchive();
+        if ($z->open($tmp) === true) {
+            $ss = []; if (preg_match_all('#<si>(.*?)</si>#s', (string) $z->getFromName('xl/sharedStrings.xml'), $mm)) foreach ($mm[1] as $si) { preg_match_all('#<t[^>]*>([^<]*)</t>#', $si, $tt); $ss[] = html_entity_decode(implode('', $tt[1])); }
+            $sh = (string) $z->getFromName('xl/worksheets/sheet1.xml'); $nach = false; $n = 0;
+            if (preg_match_all('#<c r="([A-Z]+)(\d+)"([^>]*)>(?:<f>[^<]*</f>)?<v>([^<]*)</v>#', $sh, $cc, PREG_SET_ORDER)) foreach ($cc as $c) {
+                if ($c[1] !== 'B') continue;
+                $wert = strpos($c[3], 't="s"') !== false ? ($ss[(int) $c[4]] ?? '') : $c[4];
+                if ($wert === 'Ticker') { $nach = true; continue; }
+                if ($nach && preg_match('/^[A-Z][A-Z0-9.]{0,6}$/', trim($wert))) { $m[str_replace('.', '-', trim($wert))] = $etf; $n++; }
+            }
+            $z->close(); $anz[$etf] = $n;
+        }
+        @unlink($tmp);
+    }
+    if (count($m) < 300) return $alt['mitglieder'] ?? $m;   // unvollstaendig - alten Stand behalten
+    if (!is_dir(dirname($f))) @mkdir(dirname($f), 0700, true);
+    @file_put_contents($f, json_encode(['stand' => date('c'), 'anzahl' => $anz, 'mitglieder' => $m]));
+    return $m;
+}
+
 // Rechnet alle Titel der Dividenden-Liste. Bewertung (2)/(3) und Empfehlung nur fuer Q >= 15 und nicht ausgeschieden; Zeitbudget
 // in Sekunden - was nicht drankommt, behaelt die Werte des letzten Laufs.
 function bb_rechnen(int $budget = 1500): array {
@@ -114,13 +149,14 @@ function bb_rechnen(int $budget = 1500): array {
     $ddb = ddb_get(); $zeilen = []; $fmpSperre = $alt['fmpSperre'] ?? null;
     if ($fmpSperre && strtotime($alt['stand'] ?? '2000-01-01') < time() - 7 * 86400) $fmpSperre = null;   // woechentlich neu versuchen
     $gesperrt = $fmpSperre; $neuBewertet = 0;
+    $etfs = bb_sektor_etfs();
     foreach ($ddb['stocks'] ?? [] as $s) {
         $sym = str_replace('.', '-', strtoupper((string) ($s['symbol'] ?? ''))); if ($sym === '') continue;
         $q = bb_qualitaet($s); $k = bb_kraft($s);
         $r1 = !bb_sonder($s) && ($s['divYield'] ?? 0) > 0 && ($s['avgYield5y'] ?? 0) > 0 ? $s['avgYield5y'] / $s['divYield'] : null;
         $z = ['sym' => $sym, 'name' => $s['name'] ?? $sym, 'sector' => $s['sector'] ?? '', 'industry' => $s['industry'] ?? '', 'category' => $s['category'] ?? '',
             'price' => $s['price'] ?? null, 'divYield' => $s['divYield'] ?? null, 'avgYield5y' => $s['avgYield5y'] ?? null, 'dgr1y' => $s['dgr1y'] ?? null,
-            'dgr5y' => $s['dgr5y'] ?? null, 'dgr10y' => $s['dgr10y'] ?? null, 'sp500' => $s['sp500'] ?? false, 'q' => $q, 'k' => $k, 'r1' => $r1,
+            'dgr5y' => $s['dgr5y'] ?? null, 'dgr10y' => $s['dgr10y'] ?? null, 'etf' => $etfs[$sym] ?? null, 'q' => $q, 'k' => $k, 'r1' => $r1,
             'r2' => $altZ[$sym]['r2'] ?? null, 'r3' => $altZ[$sym]['r3'] ?? null, 'basis' => $altZ[$sym]['basis'] ?? null, 'rec' => $altZ[$sym]['rec'] ?? null,
             'bewertet' => $altZ[$sym]['bewertet'] ?? null];
         $kandidat = $q['summe'] >= 15 && !$q['aus'];
@@ -139,7 +175,7 @@ function bb_rechnen(int $budget = 1500): array {
         $zeilen[] = $z;
     }
     $out = ['stand' => date('c'), 'ddbStand' => $ddb['updatedAt'] ?? null, 'anzahl' => count($zeilen), 'neuBewertet' => $neuBewertet,
-        'fmpSperre' => $gesperrt ?: null, 'zeilen' => $zeilen];
+        'fmpSperre' => $gesperrt ?: null, 'etfMitglieder' => count($etfs), 'zeilen' => $zeilen];
     if (!is_dir(dirname(bb_datei()))) @mkdir(dirname(bb_datei()), 0700, true);
     $tmp = bb_datei() . '.tmp'; if (@file_put_contents($tmp, json_encode($out, JSON_UNESCAPED_UNICODE)) !== false) @rename($tmp, bb_datei());
     return $out;
