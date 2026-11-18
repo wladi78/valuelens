@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.34 – 18.11.2026
+- Big Board: Spalten Branche und Signal (Unter/Fair/Über), Sortier-Knöpfe, je Zeile Knöpfe für Bewertung/Fitness/Dividende und „⭐ Best Bets aller Sektoren“ als Liste nach Sektor.
+
 ## 1.33 – 18.11.2026
 - Big Board: ältere Ergebnisse werden einmal neu gerechnet, damit die Sektor-ETF-Kennzeichnung sofort erscheint.
 

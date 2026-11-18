@@ -527,7 +527,7 @@ async function acListeLaden(){
 // ---- Big Board (Nutzer 18.11.2026, Verfahren nach Dave Van Knapp "Dividends & Income Select", nur freie Daten) ----
 // Gerechnet wird auf dem Server (bigboard-lib.php, nachts); die Seite zeigt das Ergebnis und bewertet nur fehlende Titel selbst nach.
 // Auswahl wie bei ihm: Sektoren oder "Scheiben" (Versicherungen, Banken, Kings, Rendite >= 2,5 %, Qualitaet >= 22).
-let _bbZeilen = [], _bbSort = {k:'pfp', auf:true}, _bbServerP = null;
+let _bbZeilen = [], _bbSort = {k:'pfp', auf:true}, _bbServerP = null, _bbGruppe = false;
 const KI_DDB_ZEICHEN_BB = {King:'👑 King', Champion:'🏆 Champion', Contender:'🥈 Contender', Challenger:'🌱 Challenger'};
 function bbServer(neu){ if(!_bbServerP || neu) _bbServerP = fetch('bigboard.php', {cache:'no-store'}).then(r=>r.json()).catch(()=>({zeilen:[]})); return _bbServerP; }
 function bbPfp(z){ const w = [z.r1, z.r2, z.r3].filter(v=>v!=null && isFinite(v) && v>0); return w.length ? w.reduce((a,b)=>a+b,0)/w.length : null; }
@@ -559,8 +559,17 @@ async function bbLaden(){
   info.textContent = `${sel.options[sel.selectedIndex].text}: ${_bbZeilen.length} Dividendenwerte (Liste dripinvesting.org vom ${dat(d.ddbStand)}, gerechnet ${dat(d.stand)}) · ${_bbZeilen.filter(bbBestBet).length} Best Bets${d.fmpSperre ? ' · FMP-DCF nicht verfügbar' : ''} · Regelausgabe, keine Anlageberatung.`;
   bbZeichnen();
 }
+const BB_SORT_KNOEPFE = [['pfp','Bewertung'],['q','Qualität'],['y','Rendite'],['g5','Wachstum 5 J.'],['g1','Letzte Erhöhung'],['rec','Analysten'],['sek','Sektor'],['sym','Symbol']];
+function bbLeiste(tab){
+  let l = document.getElementById('bbLeiste');
+  if(!l){ l = document.createElement('div'); l.id = 'bbLeiste'; l.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0;font-size:12.5px;';
+    (tab.closest('.table-scroll') || tab).before(l); }
+  l.innerHTML = `<button type="button" class="btn" data-bb-allebest="1" title="Best Bets aller Sektoren auf einen Blick, nach Sektor gruppiert">⭐ Best Bets aller Sektoren</button>
+    <span class="muted" style="margin-left:6px;">Sortieren:</span>` + BB_SORT_KNOEPFE.map(([k,n])=>`<button type="button" class="range-btn${_bbSort.k===k?' active':''}" data-bb-sort="${k}">${n}${_bbSort.k===k?(_bbSort.auf?' ▲':' ▼'):''}</button>`).join('');
+}
 function bbZeichnen(){
   const tab = document.getElementById('bbTab'); if(!tab) return;
+  bbLeiste(tab);
   const nurBest = document.getElementById('bbNurBest')?.checked, nurQ = document.getElementById('bbNurQ')?.checked, nurSp = document.getElementById('bbNurSp')?.checked;
   const FB = {gruen:'background:rgba(22,163,74,.16);', gelb:'background:rgba(234,179,8,.18);', orange:'background:rgba(234,88,12,.20);'};
   // "nur S&P 500" = so wie Van Knapp mit den State-Street-Sektor-ETFs (XLP, XLU ...) startet - die enthalten nur S&P-500-Werte
@@ -570,18 +579,24 @@ function bbZeichnen(){
   l = l.slice().sort((a,b)=>{ const x = wert(a,k), y = wert(b,k); if(x==null && y==null) return 0; if(x==null) return 1; if(y==null) return -1; return (typeof x==='string' ? x.localeCompare(y) : x-y)*(auf?1:-1); });
   const n = (v,d=1)=>v==null || !isFinite(v) ? '–' : kiNum(v,d);
   const qf = z=>z.q.aus ? 'orange' : z.q.summe>=20 ? 'gruen' : z.q.summe>=15 ? 'gelb' : 'orange';
-  const sp = [['sym','Symbol'],['','Name'],['sek','Sektor'],['kat','Liste'],['q','Qualität (P·F·S·H·W)'],['y','Rendite'],['g5','DGR 5 J.'],['g1','Letzte Erh.'],['','Div.-Kraft'],['','Rendite ÷ 5-J.-Ø'],['','Kurs ÷ Normal-KGV-Wert'],['','Kurs ÷ DCF'],['pfp','Kurs ÷ fairer Preis'],['','Fairer Preis'],['rec','Analysten (5 = Kauf)'],['','Best Bet']];
+  const sp = [['sym','Symbol'],['','Name'],['sek','Sektor'],['','Branche'],['kat','Liste'],['q','Qualität (P·F·S·H·W)'],['y','Rendite'],['g5','DGR 5 J.'],['g1','Letzte Erh.'],['','Div.-Kraft'],['','Rendite ÷ 5-J.-Ø'],['','Kurs ÷ Normal-KGV-Wert'],['','Kurs ÷ DCF'],['pfp','Kurs ÷ fairer Preis'],['','Signal'],['','Fairer Preis'],['rec','Analysten (5 = Kauf)'],['','Best Bet'],['','Analyse']];
+  const gruppe = _bbGruppe && k!=='sek';   // "Best Bets aller Sektoren": Zwischenzeile je Sektor
+  if(gruppe) l = l.slice().sort((a,b)=>String(a.sector).localeCompare(String(b.sector)) || 0);
+  let letzterSek = null;
   tab.innerHTML = `<thead><tr>${sp.map(([s2,t])=>`<th ${s2?`data-bb-sort="${s2}" style="cursor:pointer;white-space:nowrap;"`:'style="white-space:nowrap;"'}>${t}${s2 && _bbSort.k===s2?(auf?' ▲':' ▼'):''}</th>`).join('')}</tr></thead><tbody>`
     + l.map(z=>{ const p = bbPfp(z), fb = bbFarbeBew(p), q = z.q;
-      return `<tr data-bb-sym="${escapeHtml(z.sym)}" style="cursor:pointer;"><td><b>${escapeHtml(z.sym)}</b></td><td>${escapeHtml(String(z.name||'').slice(0,26))}</td><td class="muted" style="font-size:11px;white-space:nowrap;" title="${escapeHtml(z.industry||'')}${z.etf?' · im State-Street-ETF '+z.etf+' (S&P 500)':''}">${escapeHtml(z.sector||'')}${z.etf?` <b title="im ${z.etf} (S&P 500)">${z.etf}</b>`:''}</td><td style="white-space:nowrap;">${escapeHtml(KI_DDB_ZEICHEN_BB[z.category]||z.category||'')}</td>
+      const kopfZeile = gruppe && z.sector!==letzterSek ? `<tr><td colspan="${sp.length}" style="padding:7px 8px 4px;font-weight:700;background:var(--surface-hover);border-top:2px solid var(--border);">${escapeHtml(z.sector||'–')} <span class="muted" style="font-weight:400;">(${l.filter(x=>x.sector===z.sector).length})</span></td></tr>` : '';
+      letzterSek = z.sector;
+      return kopfZeile + `<tr data-bb-sym="${escapeHtml(z.sym)}" style="cursor:pointer;"><td><b>${escapeHtml(z.sym)}</b></td><td>${escapeHtml(String(z.name||'').slice(0,26))}</td><td class="muted" style="font-size:11px;white-space:nowrap;" title="${z.etf?'im State-Street-ETF '+z.etf+' (S&P 500)':''}">${escapeHtml(z.sector||'')}${z.etf?` <b title="im ${z.etf} (S&P 500)">${z.etf}</b>`:''}</td><td style="font-size:11.5px;white-space:nowrap;">${escapeHtml(String(z.industry||'').slice(0,30))}</td><td style="white-space:nowrap;">${escapeHtml(KI_DDB_ZEICHEN_BB[z.category]||z.category||'')}</td>
         <td style="${FB[qf(z)]}white-space:nowrap;" title="Profitabilität ${q.prof??'–'} · Finanzkraft ${q.finK??'–'} · Dividendensicherheit ${q.sich??'–'} (Ausschüttung Gewinn ${q.epsQ!=null?kiNum(q.epsQ*100,0)+' %':'–'}, Cashflow ${q.cfQ!=null?kiNum(q.cfQ*100,0)+' %':'–'}) · Historie ${q.hist??'–'} · Wachstum ${q.wachs}${q.aus?' – ausgeschieden (0 Punkte auf einer Kennzahl)':''}"><b>${q.summe}</b> <span class="muted">(${[q.prof,q.finK,q.sich,q.hist,q.wachs].map(v=>v??'–').join('·')})</span>${q.aus?' ✖':''}</td>
         <td>${n(z.divYield,2)} %</td><td>${n(z.dgr5y)} %${z.k.sonder?' <span title="Sonderdividenden verzerren das 5-J.-Wachstum – Kraft nach 10 J., Renditebewertung ausgelassen" style="color:#d97706;cursor:help;">ⓢ</span>':''}</td><td>${n(z.dgr1y)} %</td>
         <td style="${FB[z.k.farbe]||''}" title="Wachstum für die Matrix: ${n(z.k.g)} %">${z.k.farbe==='gruen'?'stark':z.k.farbe==='gelb'?'gut':z.k.farbe==='orange'?(z.k.bremse?'Bremse':'schwach'):'–'}</td>
         <td style="${FB[bbFarbeBew(z.r1)]||''}" title="5-J.-Ø-Rendite ${n(z.avgYield5y,2)} % ÷ heute ${n(z.divYield,2)} % (unter 1 = günstiger als sonst)">${z.r1!=null?kiNum(z.r1,2):'–'}</td>
         <td style="${FB[bbFarbeBew(z.r2)]||''}" title="${escapeHtml(z.basis||'')}">${z.laedt?'…':(z.r2!=null?kiNum(z.r2,2):'–')}</td>
         <td style="${FB[bbFarbeBew(z.r3)]||''}" title="Financial Modeling Prep, DCF">${z.r3!=null?kiNum(z.r3,2):'–'}</td>
-        <td style="${FB[fb]||''}"><b>${p!=null?kiNum(p,2):'–'}</b></td><td>${p && z.price ? kiNum(z.price/p,2) : '–'}</td>
-        <td style="${FB[bbFarbeRec(z.rec)]||''}" title="Analystenschnitt Yahoo, gedreht auf 5 = starker Kauf; unter 2,75 orange, ab 3,75 grün">${z.rec!=null?kiNum(z.rec,2):'–'}</td><td style="text-align:center;">${bbBestBet(z)?'✅':''}</td></tr>`; }).join('') + `</tbody>`;
+        <td style="${FB[fb]||''}"><b>${p!=null?kiNum(p,2):'–'}</b></td><td style="${FB[fb]||''}">${fb==='gruen'?'Unter':fb==='gelb'?'Fair':fb==='orange'?'Über':'–'}</td><td>${p && z.price ? kiNum(z.price/p,2) : '–'}</td>
+        <td style="${FB[bbFarbeRec(z.rec)]||''}" title="Analystenschnitt Yahoo, gedreht auf 5 = starker Kauf; unter 2,75 orange, ab 3,75 grün">${z.rec!=null?kiNum(z.rec,2):'–'}</td><td style="text-align:center;">${bbBestBet(z)?'✅':''}</td>
+        <td style="white-space:nowrap;"><button type="button" class="range-btn" data-bb-tab="bewertung" title="Chart, Reiter Bewertung">📈</button><button type="button" class="range-btn" data-bb-tab="fitness" title="Finanzielle Fitness">💪</button><button type="button" class="range-btn" data-bb-tab="div" title="Dividende">💰</button></td></tr>`; }).join('') + `</tbody>`;
 }
 // Monatskauf (Nutzer 18.11.2026: "Big Board in Monatsaktien einfuegen"): Best Bets in Sektoren unter Soll unter dem Kaufvorschlag
 async function bbMonatskauf(el, unterSoll){
@@ -597,9 +612,10 @@ async function bbMonatskauf(el, unterSoll){
 document.addEventListener('click', e=>{
   if(e.target.closest('#bbLaden')){ bbLaden(); return; }
   const th = e.target.closest('[data-bb-sort]'); if(th){ const k = th.dataset.bbSort; _bbSort = {k, auf: _bbSort.k===k ? !_bbSort.auf : (k==='sym'||k==='pfp'||k==='sek')}; bbZeichnen(); return; }
-  const r = e.target.closest('[data-bb-sym]'); if(r){ e.preventDefault(); kiTabSetzen('bewertung'); kiChartSymbolOeffnen(r.dataset.bbSym); }
+  if(e.target.closest('[data-bb-allebest]')){ const s = document.getElementById('bbSektor'), b = document.getElementById('bbNurBest'); if(s) s.value = 'alle'; if(b) b.checked = true; _bbGruppe = true; _bbSort = {k:'pfp', auf:true}; bbLaden(); return; }
+  const r = e.target.closest('[data-bb-sym]'); if(r){ e.preventDefault(); const tb = e.target.closest('[data-bb-tab]'); kiTabSetzen(tb ? tb.dataset.bbTab : 'bewertung'); kiChartSymbolOeffnen(r.dataset.bbSym); }
 });
-document.addEventListener('change', e=>{ if(e.target && (e.target.id==='bbNurBest' || e.target.id==='bbNurQ' || e.target.id==='bbNurSp')) bbZeichnen(); });
+document.addEventListener('change', e=>{ if(e.target && e.target.id==='bbSektor') _bbGruppe = false; if(e.target && (e.target.id==='bbNurBest' || e.target.id==='bbNurQ' || e.target.id==='bbNurSp')) bbZeichnen(); });
 function renderAktienChartSeite(){
   const inp = document.getElementById('acSymbol'); if(!inp) return;
   if(!inp.dataset.verbunden){
