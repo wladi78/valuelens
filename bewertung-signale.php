@@ -39,7 +39,7 @@ foreach ($d['watchlist'] ?? [] as $w) {
 require_once __DIR__ . '/dividend-database-lib.php';
 foreach (ddb_get()['stocks'] ?? [] as $r) {
     $s = str_replace('.', '-', strtoupper((string) ($r['symbol'] ?? '')));
-    if ($s !== '' && !isset($titel[$s])) $titel[$s] = [$r['sector'] ?? '', 'Dividenden-Liste (' . ($r['category'] ?? '') . ')', $r['name'] ?? ''];
+    if ($s !== '' && !isset($titel[$s]) && !isset($titel[strtoupper((string) $r['symbol'])])) $titel[$s] = [$r['sector'] ?? '', 'Dividenden-Liste (' . ($r['category'] ?? '') . ')', $r['name'] ?? ''];
 }
 
 $treffer = []; $fehler = 0; $n = 0; $bankFv = [];
