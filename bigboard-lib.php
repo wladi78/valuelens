@@ -182,7 +182,8 @@ function bb_rechnen(int $budget = 1500): array {
 }
 function bb_laden(): array {
     $d = json_decode((string) @file_get_contents(bb_datei()), true);
-    return is_array($d) ? $d : bb_rechnen(0);   // erster Aufruf: Qualitaet/Kraft sofort, Bewertung kommt nachts
+    // erster Aufruf bzw. Datei aus aelterer Fassung (ohne ETF-Bestand): Qualitaet/Kraft sofort neu, Bewertungen bleiben, Rest kommt nachts
+    return (is_array($d) && isset($d['etfMitglieder'])) ? $d : bb_rechnen(0);
 }
 
 // Monatsbericht fuer Telegram (1. des Monats): Best Bets je Sektor, kurz

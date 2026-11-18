@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.33 – 18.11.2026
+- Big Board: ältere Ergebnisse werden einmal neu gerechnet, damit die Sektor-ETF-Kennzeichnung sofort erscheint.
+
 ## 1.32 – 18.11.2026
 - Big Board: Kennzeichnung und Filter für Werte in den State-Street-Sektor-ETFs (XLP, XLU …) – wöchentlich von ssga.com.
 
