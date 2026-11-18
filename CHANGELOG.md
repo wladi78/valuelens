@@ -1,5 +1,10 @@
 # Änderungen
 
+## 1.25 – 18.11.2026
+- Fitness: **Wachstum + Momentum** – Umsatz, EBITDA, EBIT, Gewinn/Cashflow/Dividende je Aktie gegen Vorjahr, 3/5/10 Jahre und Analystenerwartung; Kursentwicklung 1–12 Monate gegen den S&P 500.
+- Fitness: **Vergleichsunternehmen** – ähnliche Werte mit KGV, EV/EBITDA, Rendite, Wachstum, Margen, ROE und Median.
+- PEG auch ohne Analysten-Langfristwachstum: dann mit dem Gewinnwachstum der letzten 5 Jahre.
+
 ## 1.24 – 17.11.2026
 - Fitness: **Bewertungskennzahlen** (KGV, EV/EBITDA, Kurs/Umsatz, Kurs/Buchwert, Kurs/Cashflow … jetzt gegen den eigenen 5-Jahres-Schnitt) und **Quartalszahlen** (Gewinn je Aktie gegen Schätzung).
 - Dividendenhistorie mit Trennzeile je Jahr (Summe, Anzahl, Veränderung).

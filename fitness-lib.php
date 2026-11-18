@@ -206,7 +206,7 @@ function fitness_daten($symbol, $neu = false) {
 // deren Schaetzungshistorie es frei nicht gibt). Yahoo quoteSummary, 1 Tag Cache. S&P-Kreditrating gibt es frei nicht.
 function firmen_info($symbol) {
     $dir = __DIR__ . '/data/cache/fitness';
-    $datei = $dir . '/info3_' . preg_replace('/[^A-Z0-9.\-]/', '_', $symbol) . '.json';
+    $datei = $dir . '/info4_' . preg_replace('/[^A-Z0-9.\-]/', '_', $symbol) . '.json';
     if (is_file($datei) && time() - filemtime($datei) < 86400) { $c = json_decode((string) file_get_contents($datei), true); if (is_array($c)) return $c; }
     $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
     $sess = yahoo_get_session($ua);
@@ -225,6 +225,12 @@ function firmen_info($symbol) {
         'urteil' => $fd['recommendationKey'] ?? null, 'urteilWert' => $r($fd, 'recommendationMean'), 'analysten' => $r($fd, 'numberOfAnalystOpinions'),
         'kursziel' => $r($fd, 'targetMeanPrice'), 'kurszielTief' => $r($fd, 'targetLowPrice'), 'kurszielHoch' => $r($fd, 'targetHighPrice'),
         'quartale' => [], 'stand' => date('Y-m-d H:i'),
+        // Kennzahlen fuer Vergleichsunternehmen und Wachstum (Nutzer 18.11.2026, nach Vorlage Seeking Alpha "Peers"/"Growth")
+        'name' => $pr['shortName'] ?? ($pr['longName'] ?? null), 'kgv' => $r($sd, 'trailingPE'), 'kgvF' => $r($sd, 'forwardPE') ?? $r($ks, 'forwardPE'),
+        'divRendite' => $r($sd, 'dividendYield'), 'umsatzWachstum' => $r($fd, 'revenueGrowth'), 'gewinnWachstum' => $r($fd, 'earningsGrowth'),
+        'bruttomarge' => $r($fd, 'grossMargins'), 'opMarge' => $r($fd, 'operatingMargins'), 'nettomarge' => $r($fd, 'profitMargins'), 'roe' => $r($fd, 'returnOnEquity'),
+        'evEbitda' => $r($ks, 'enterpriseToEbitda'), 'evUmsatz' => $r($ks, 'enterpriseToRevenue'), 'kbv' => $r($ks, 'priceToBook'), 'kuv' => $r($sd, 'priceToSalesTrailing12Months'),
+        'perf52' => $r($ks, '52WeekChange'), 'spPerf52' => $r($ks, 'SandP52WeekChange'),
     ];
     foreach ($q['earningsHistory']['history'] ?? [] as $h) {
         $out['quartale'][] = ['quartal' => $h['quarter']['fmt'] ?? null, 'schaetzung' => $r($h, 'epsEstimate'), 'ist' => $r($h, 'epsActual'), 'abweichung' => $r($h, 'surprisePercent')];
@@ -239,6 +245,7 @@ function firmen_info($symbol) {
             $out['trend'][] = ['periode' => $per, 'ende' => $t['endDate'] ?? null, 'aktuell' => $r($et, 'current'), 'vor7' => $r($et, '7daysAgo'),
                 'vor30' => $r($et, '30daysAgo'), 'vor60' => $r($et, '60daysAgo'), 'vor90' => $r($et, '90daysAgo'),
                 'tief' => $r($ee, 'low'), 'hoch' => $r($ee, 'high'), 'mittel' => $r($ee, 'avg'), 'analysten' => $r($ee, 'numberOfAnalysts'),
+                'gewinnWachstum' => $r($t, 'growth'), 'umsatzWachstum' => $r($t['revenueEstimate'] ?? [], 'growth'), 'umsatzMittel' => $r($t['revenueEstimate'] ?? [], 'avg'),
                 // Schaetzungsaenderungen: wie viele Analysten haben in 7/30 Tagen angehoben bzw. gesenkt
                 'rauf7' => $r($t['epsRevisions'] ?? [], 'upLast7days'), 'rauf30' => $r($t['epsRevisions'] ?? [], 'upLast30days'),
                 'runter7' => $r($t['epsRevisions'] ?? [], 'downLast7Days') ?? $r($t['epsRevisions'] ?? [], 'downLast7days'),
@@ -252,6 +259,38 @@ function firmen_info($symbol) {
     for ($i = 1; $i < count($out['trend']); $i++) if ($out['trend'][$i]['ende'] && $out['trend'][$i]['ende'] <= $out['trend'][$i - 1]['ende']) $out['trend'][$i]['ende'] = date('Y-m-d', strtotime($out['trend'][$i - 1]['ende'] . ' +1 year'));
     if (!is_dir($dir)) @mkdir($dir, 0700, true);
     @file_put_contents($datei, json_encode($out, JSON_UNESCAPED_UNICODE));
+    return $out;
+}
+
+
+// Vergleichsunternehmen (Nutzer 18.11.2026, nach Vorlage Seeking Alpha "Peers"): Yahoo "Personen schauten auch" (recommendationsbysymbol),
+// bis 5 Werte, je Wert firmen_info (24 h Cache). Liste selbst 7 Tage im Cache.
+function firmen_vergleich($symbol) {
+    $dir = __DIR__ . '/data/cache/fitness';
+    $datei = $dir . '/peers_' . preg_replace('/[^A-Z0-9.\-]/', '_', $symbol) . '.json';
+    $liste = null;
+    if (is_file($datei) && time() - filemtime($datei) < 7 * 86400) $liste = json_decode((string) file_get_contents($datei), true);
+    if (!is_array($liste)) {
+        $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+        $sess = yahoo_get_session($ua);
+        if (!$sess) return ['fehler' => 'Yahoo nicht erreichbar'];
+        $res = yahoo_curl_with_session('https://query2.finance.yahoo.com/v6/finance/recommendationsbysymbol/' . rawurlencode($symbol) . '?crumb=' . rawurlencode($sess['crumb']), $ua, $sess);
+        $j = $res['code'] === 200 ? json_decode($res['body'], true) : null;
+        $liste = [];
+        foreach ($j['finance']['result'][0]['recommendedSymbols'] ?? [] as $x) {
+            $s = strtoupper((string) ($x['symbol'] ?? ''));
+            if ($s !== '' && $s !== $symbol && preg_match('/^[A-Z0-9.\-]{1,20}$/', $s)) $liste[] = $s;
+        }
+        $liste = array_slice($liste, 0, 5);
+        if (!is_dir($dir)) @mkdir($dir, 0700, true);
+        if ($liste) @file_put_contents($datei, json_encode($liste));
+    }
+    $felder = ['name', 'waehrung', 'typ', 'branche', 'marktwert', 'kgv', 'kgvF', 'divRendite', 'umsatzWachstum', 'gewinnWachstum', 'bruttomarge', 'opMarge', 'nettomarge', 'roe', 'evEbitda', 'evUmsatz', 'kbv', 'kuv', 'perf52', 'ltg'];
+    $zeile = function ($s) use ($felder) { $i = firmen_info($s); $z = ['symbol' => $s];
+        if (!empty($i['fehler'])) { $z['fehler'] = $i['fehler']; return $z; }
+        foreach ($felder as $f) $z[$f] = $i[$f] ?? null; return $z; };
+    $out = ['symbol' => $symbol, 'werte' => [$zeile($symbol)], 'quelle' => 'Yahoo (recommendationsbysymbol, quoteSummary)'];
+    foreach ($liste as $s) $out['werte'][] = $zeile($s);
     return $out;
 }
 

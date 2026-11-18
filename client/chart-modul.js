@@ -858,7 +858,11 @@ const KI_FIT_FELDER = [
   ['dividenden', 'Dividenden (Übersicht, Rendite, Wachstum, Sicherheit, Historie)', 'nach Vorlage Seeking Alpha, ohne deren Noten', '', y=>[]],
   ['bewtab', 'Bewertungskennzahlen (KGV, EV/EBITDA, KUV … gegen 5 J.)', 'nach Vorlage Seeking Alpha', '', y=>[]],
   ['quartale', 'Quartalszahlen (Gewinn gegen Schätzung)', 'Yahoo', '', y=>[]],
+  ['wachstum', 'Wachstum + Momentum (gegen S&P 500)', 'nach Vorlage Seeking Alpha', '', y=>[]],
+  ['vergleich', 'Vergleichsunternehmen', 'Yahoo', '', y=>[]],
 ];
+const KI_BT_FELDER = ['bewtab','quartale','wachstum','vergleich'];   // Seiten in kiBewTabSeite
+const _kiMomCache = {}, _kiVglCache = {};
 // Wie Vorlage "Financials" (dort Premium): alle Jahreszahlen untereinander mit Mini-Verlauf und CAGR, neueste Jahre links
 function kiFitPeriodeKnopf(d){
   if(!(d.quartale||[]).length) return '';
@@ -1055,13 +1059,13 @@ function kiBewTabSeite(el, d, sym){
   if(_kiFitChart){ try{ _kiFitChart.destroy(); } catch(e){} _kiFitChart = null; }
   const S = String(sym).toUpperCase();
   const ip = kiInfoLaden(sym); const info = ip._wert;
-  if(!('_wert' in ip)) ip.then(w=>{ ip._wert = w; if(document.getElementById('kiFitness')===el && (_kiFitFeld==='bewtab' || _kiFitFeld==='quartale')) kiBewTabSeite(el, d, sym); });
+  if(!('_wert' in ip)) ip.then(w=>{ ip._wert = w; if(document.getElementById('kiFitness')===el && KI_BT_FELDER.includes(_kiFitFeld)) kiBewTabSeite(el, d, sym); });
   if(!(S in _kiDivEps)){ _kiDivEps[S] = null; kiReihen(sym).then(rh=>{ _kiDivEps[S] = (rh && rh.schaetzung) || []; if(document.getElementById('kiFitness')===el) kiBewTabSeite(el, d, sym); }).catch(()=>{ _kiDivEps[S] = []; }); }
   const D = (_kiFitDivs && _kiFitDivs.sym===sym) ? _kiFitDivs : null;
   if(D && !(D.kerzen && D.kerzen.length) && !D._kursLaedt){ D._kursLaedt = true; fetch('quote.php?ohlc=1&symbols=' + encodeURIComponent(sym) + '&interval=1mo&range=max', {cache:'no-store'}).then(r=>r.json()).then(q=>{ D.kerzen = (q && q.kerzen) || []; if(document.getElementById('kiFitness')===el) kiBewTabSeite(el, d, sym); }).catch(()=>{}); }
   const k = (D && D.kerzen) || [];
   const kopf = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;"><button type="button" class="range-btn" data-ki-fit-zurueck="1">← Fitness</button>
-    <button type="button" class="range-btn${_kiFitFeld==='bewtab'?' active':''}" data-ki-bt="bewtab">Bewertungskennzahlen</button><button type="button" class="range-btn${_kiFitFeld==='quartale'?' active':''}" data-ki-bt="quartale">Quartalszahlen</button>
+    <button type="button" class="range-btn${_kiFitFeld==='bewtab'?' active':''}" data-ki-bt="bewtab">Bewertungskennzahlen</button><button type="button" class="range-btn${_kiFitFeld==='quartale'?' active':''}" data-ki-bt="quartale">Quartalszahlen</button><button type="button" class="range-btn${_kiFitFeld==='wachstum'?' active':''}" data-ki-bt="wachstum">Wachstum + Momentum</button><button type="button" class="range-btn${_kiFitFeld==='vergleich'?' active':''}" data-ki-bt="vergleich">Vergleichsunternehmen</button>
     <span class="muted" style="font-size:11.5px;">Kurse, Marktwert, Schätzungen: Yahoo · Jahreszahlen: SEC${info===undefined?' · lädt …':''}</span></div>`;
   const binden = ()=>{ el.querySelector('[data-ki-fit-zurueck]')?.addEventListener('click', ()=>{ _kiFitFeld = 'fcfdiv'; kiFitnessZeichnen(sym); });
     el.querySelectorAll('[data-ki-bt]').forEach(b=>b.addEventListener('click', ()=>{ _kiFitFeld = b.dataset.kiBt; kiBewTabSeite(el, d, sym); })); };
@@ -1075,6 +1079,79 @@ function kiBewTabSeite(el, d, sym){
           return `<tr style="text-align:right;border-top:1px solid var(--border);"><td style="text-align:left;padding:4px 8px;">${escapeHtml(String(x.quartal||'–'))}</td><td style="padding:4px 8px;">${x.schaetzung!=null?kiNum(x.schaetzung,2):'–'}</td><td style="padding:4px 8px;font-weight:700;">${x.ist!=null?kiNum(x.ist,2):'–'}</td><td style="padding:4px 8px;color:${ab==null?'':(ab>=0?'#16a34a':'#dc2626')};">${ab==null?'–':(ab>=0?'+':'')+kiNum(ab,1)+' %'}</td></tr>`; }).join('')
       + `</tbody></table><div style="margin-top:8px;font-size:12.5px;"><b>${schlaegt} von ${q.length}</b> Quartalen über der Schätzung.</div><div class="muted" style="font-size:11px;margin-top:4px;">Gewinn je Aktie bereinigt (wie von den Analysten geschätzt), Yahoo. Umsatz gegen Schätzung liefert die freie Quelle nicht.</div>`
       : `<div class="muted">${info===undefined ? 'Lade Quartalszahlen …' : 'Keine Quartalszahlen bei Yahoo.'}</div>`);
+    binden(); return;
+  }
+  const farbe = v=>v==null || !isFinite(v) ? '' : (v>0 ? '#16a34a' : (v<0 ? '#dc2626' : ''));
+  const pv = (v, dez=1)=>v==null || !isFinite(v) ? '–' : (v>0?'+':'')+kiNum(v,dez)+' %';
+  const th = s=>`<th style="padding:4px 8px;">${s}</th>`, td = (s, st='')=>`<td style="padding:4px 8px;${st}">${s}</td>`;
+  if(_kiFitFeld === 'wachstum'){
+    // Wachstum (Vorlage "Growth"): Vorjahr = letzte 4 Quartale gegen die 4 davor (sonst letztes GJ gegen Vorjahr), 3/5 J. als
+    // Jahresrate aus den SEC-Jahreszahlen, erwartet = Analystenkonsens Yahoo (nur Umsatz und Gewinn je Aktie gibt es frei).
+    const J = (d.jahre||[]).slice().sort((a,b)=>a.date<b.date?-1:1), Q = (d.quartale||[]).slice().sort((a,b)=>a.date<b.date?-1:1);
+    const M = [['Umsatz', y=>y.umsatz, 'umsatz'], ['EBITDA', y=>y.betrieb!=null ? y.betrieb+(y.abschreibung||0) : null], ['EBIT (Betriebsergebnis)', y=>y.betrieb],
+      ['Gewinn je Aktie', y=>y.gewinn!=null && y.aktien ? y.gewinn/y.aktien : null, 'gewinn'], ['Op. Cashflow je Aktie', y=>y.ocf!=null && y.aktien ? y.ocf/y.aktien : null],
+      ['Free Cashflow je Aktie', y=>y.ocf!=null && y.aktien ? (y.ocf-(y.capex||0))/y.aktien : null], ['Dividende je Aktie', y=>y.divGezahlt!=null && y.aktien ? y.divGezahlt/y.aktien : null]];
+    const ttm = (f, ab)=>{ const z = Q.slice(Q.length-4-ab, Q.length-ab); if(z.length<4) return null; const w = z.map(f); if(w.some(v=>v==null)) return null;
+      return w.reduce((a,b)=>a+b,0); };
+    const ttmJe = (f, ab)=>{ const z = Q.slice(Q.length-4-ab, Q.length-ab); return z.length===4 && z[3].aktien ? ttm(y=>{ const v = f({...y, aktien:1}); return v; }, ab)/z[3].aktien : null; };
+    const vorjahr = (f, jeAktie)=>{ let a, b, art;
+      if(Q.length>=8){ a = jeAktie ? ttmJe(f,0) : ttm(f,0); b = jeAktie ? ttmJe(f,4) : ttm(f,4); art = 'q'; }
+      if(a==null || b==null){ a = J.length ? f(J[J.length-1]) : null; b = J.length>1 ? f(J[J.length-2]) : null; art = 'j'; }
+      return {w: a!=null && b>0 ? (a/b-1)*100 : null, art}; };
+    const rate = (f, n)=>{ if(J.length<n+1) return null; const a = f(J[J.length-1-n]), b = f(J[J.length-1]); if(!(a>0) || !(b>0)) return null;
+      const jahreN = (new Date(J[J.length-1].date)-new Date(J[J.length-1-n].date))/31557600000; return jahreN>0.5 ? (Math.pow(b/a, 1/jahreN)-1)*100 : null; };
+    const tr = (info && info.trend) || [];
+    let artVj = 'j';
+    const zeilen = M.map(([n, f, erw], i)=>{ const je = i>=3; const vj = vorjahr(f, je); if(vj.w!=null) artVj = vj.art;
+      const e0 = erw && tr[0] ? tr[0][erw+'Wachstum'] : null, e1 = erw && tr[1] ? tr[1][erw+'Wachstum'] : null;
+      const c = [vj.w, rate(f,3), rate(f,5), rate(f,10), e0!=null ? e0*100 : null, e1!=null ? e1*100 : null];
+      return `<tr style="text-align:right;border-top:1px solid var(--border);">${td(n,'text-align:left;')}${c.map((v,k)=>td(pv(v), 'color:'+farbe(v)+';'+(k===0?'font-weight:700;':''))).join('')}</tr>`; });
+    const jE = s=>s ? escapeHtml(String(s).slice(0,4)) : '?';
+    // Momentum (Vorlage "Momentum"): Kursveraenderung 1/3/6/9/12 M gegen S&P 500, Tageskerzen 1 Jahr (Yahoo)
+    const S5 = '^GSPC';
+    if(!_kiMomCache[S]){ _kiMomCache[S] = {laedt:true};
+      const hol = s=>fetch('quote.php?ohlc=1&symbols=' + encodeURIComponent(s) + '&interval=1d&range=2y', {cache:'no-store'}).then(r=>r.json()).then(q=>(q && q.kerzen) || []).catch(()=>[]);
+      Promise.all([hol(sym), hol(S5)]).then(([a,b])=>{ _kiMomCache[S] = {a, b}; if(document.getElementById('kiFitness')===el && _kiFitFeld==='wachstum') kiBewTabSeite(el, d, sym); }); }
+    const MC = _kiMomCache[S];
+    const aend = (kz, mon)=>{ if(!kz || kz.length<2) return null; const l = kz[kz.length-1]; const dt = new Date(l[0]+'T12:00:00Z'); dt.setUTCMonth(dt.getUTCMonth()-mon);
+      const ziel = dt.toISOString().slice(0,10); const v = kz.filter(x=>x[0]<=ziel).pop(); return v && v[4]>0 ? (l[4]/v[4]-1)*100 : null; };
+    const momZ = MC.laedt ? `<tr><td colspan="4" class="muted" style="padding:6px 8px;">lädt Kurse …</td></tr>` : [1,3,6,9,12].map(m=>{ const a = aend(MC.a, m), b = aend(MC.b, m), u = a!=null && b!=null ? a-b : null;
+      return `<tr style="text-align:right;border-top:1px solid var(--border);">${td(m+' Monat'+(m>1?'e':''),'text-align:left;')}${td(pv(a),'font-weight:700;color:'+farbe(a)+';')}${td(pv(b),'color:'+farbe(b)+';')}${td(u==null?'–':(u>0?'+':'')+kiNum(u,1)+' Pkt.','color:'+farbe(u)+';')}</tr>`; }).join('');
+    const hoch = !MC.laedt && MC.a && MC.a.length ? (()=>{ const z = MC.a.slice(-252); const h = Math.max(...z.map(x=>x[2])), t = Math.min(...z.map(x=>x[3])), l = z[z.length-1][4];
+      return `52-Wochen-Spanne ${kiNum(t,2)} – ${kiNum(h,2)}, aktuell ${kiNum((l/h-1)*100,1)} % unter dem Hoch.`; })() : '';
+    el.innerHTML = kopf + `<div style="font-weight:700;font-size:12px;letter-spacing:.04em;margin-bottom:6px;">WACHSTUM</div>`
+      + `<table style="width:100%;font-size:12.5px;border-collapse:collapse;"><thead><tr style="text-align:right;"><th style="text-align:left;padding:4px 8px;">Kennzahl</th>${th(artVj==='q'?'Vorjahr (12 M)':'Vorjahr (GJ)')}${th('3 J. p. a.')}${th('5 J. p. a.')}${th('10 J. p. a.')}${th('erwartet GJ '+jE(tr[0]&&tr[0].ende))}${th('erwartet GJ '+jE(tr[1]&&tr[1].ende))}</tr></thead><tbody>`
+      + (J.length ? zeilen.join('') : `<tr><td colspan="7" class="muted" style="padding:6px 8px;">Keine SEC-Jahreszahlen.</td></tr>`) + `</tbody></table>`
+      + `<div class="muted" style="font-size:11px;margin-top:4px;">${artVj==='q' ? 'Vorjahr = letzte 4 Quartale gegen die 4 Quartale davor' : 'Vorjahr = letztes Geschäftsjahr gegen das davor'} (SEC). 3/5/10 J. = Jahresrate aus den SEC-Jahreszahlen (– bei negativem Anfangs- oder Endwert). Erwartet = Analystenkonsens Yahoo, nur Umsatz und Gewinn je Aktie (bereinigt).</div>`
+      + `<div style="font-weight:700;font-size:12px;letter-spacing:.04em;margin:14px 0 6px;">MOMENTUM (Kurs ohne Dividende)</div>`
+      + `<table style="width:100%;max-width:560px;font-size:12.5px;border-collapse:collapse;"><thead><tr style="text-align:right;"><th style="text-align:left;padding:4px 8px;">Zeitraum</th>${th(escapeHtml(S))}${th('S&amp;P 500')}${th('Unterschied')}</tr></thead><tbody>${momZ}</tbody></table>`
+      + (hoch ? `<div style="font-size:12.5px;margin-top:6px;">${hoch}</div>` : '')
+      + `<div class="muted" style="font-size:11px;margin-top:4px;">Tagesschlusskurse Yahoo, S&amp;P 500 = Index ^GSPC. Grün = besser als der Index.</div>`;
+    binden(); return;
+  }
+  if(_kiFitFeld === 'vergleich'){
+    // Vergleichsunternehmen (Vorlage "Peers"): Yahoo "auch angesehen" - gleiche Branche zuerst, andere Branche markiert
+    if(!_kiVglCache[S]){ _kiVglCache[S] = {laedt:true};
+      fetch('fitness.php?vergleich=1&symbol=' + encodeURIComponent(sym), {cache:'no-store'}).then(r=>r.json()).catch(()=>({fehler:'Abruf fehlgeschlagen'}))
+        .then(v=>{ _kiVglCache[S] = v || {fehler:'leer'}; if(document.getElementById('kiFitness')===el && _kiFitFeld==='vergleich') kiBewTabSeite(el, d, sym); }); }
+    const V = _kiVglCache[S];
+    if(V.laedt || V.fehler || !(V.werte||[]).length){ el.innerHTML = kopf + `<div class="muted">${V.laedt ? 'Lade Vergleichsunternehmen (beim ersten Mal bis 10 s) …' : 'Keine Vergleichsdaten: '+escapeHtml(String(V.fehler||'leer'))}</div>`; binden(); return; }
+    const ich = V.werte[0], br = ich.branche;
+    const andere = V.werte.slice(1).filter(w=>!w.fehler).sort((a,b)=>(a.branche===br?0:1)-(b.branche===br?0:1));
+    const gleich = andere.filter(w=>br && w.branche===br);
+    const basis = gleich.length>=2 ? gleich : andere;
+    const median = f=>{ const w = basis.map(x=>x[f]).filter(v=>v!=null && isFinite(v)).sort((a,b)=>a-b); if(!w.length) return null; const m = Math.floor(w.length/2); return w.length%2 ? w[m] : (w[m-1]+w[m])/2; };
+    const SP = [['Marktwert', 'marktwert', 'mrd'], ['KGV', 'kgv', 'x'], ['KGV erw.', 'kgvF', 'x'], ['EV/EBITDA', 'evEbitda', 'x'], ['KUV', 'kuv', 'x'], ['KBV', 'kbv', 'x'],
+      ['Div.-Rendite', 'divRendite', 'p'], ['Umsatz­wachstum', 'umsatzWachstum', 'p'], ['Brutto­marge', 'bruttomarge', 'p'], ['Netto­marge', 'nettomarge', 'p'], ['ROE', 'roe', 'p'], ['Kurs 52 W.', 'perf52', 'p']];
+    const fw = (v, art, w)=>{ if(v==null || !isFinite(v)) return '–'; if(art==='mrd') return kiNum(v/1e9,1)+' Mrd.'+(w?' '+escapeHtml(w):''); if(art==='x') return v>0 ? kiNum(v,1)+'×' : '–'; return kiNum(v*100,1)+' %'; };
+    const zeileV = (w, stil, titel)=>`<tr style="text-align:right;border-top:1px solid var(--border);${stil||''}"><td style="text-align:left;padding:4px 8px;white-space:nowrap;">${titel || `<b>${escapeHtml(w.symbol)}</b> <span class="muted" style="font-size:11px;">${escapeHtml(String(w.name||'').slice(0,26))}${w.branche!==br && w.branche ? ' · <i>andere Branche: '+escapeHtml(w.branche)+'</i>' : ''}</span>`}</td>`
+      + SP.map(([n,f,art])=>`<td style="padding:4px 6px;">${fw(w[f], art, art==='mrd' ? w.waehrung : '')}</td>`).join('') + `</tr>`;
+    const med = {}; SP.forEach(([n,f])=>med[f] = median(f));
+    el.innerHTML = kopf + `<div style="overflow-x:auto;"><table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr style="text-align:right;"><th style="text-align:left;padding:4px 8px;">Wert</th>${SP.map(([n])=>`<th style="padding:4px 6px;">${n}</th>`).join('')}</tr></thead><tbody>`
+      + zeileV(ich, 'background:var(--surface-hover);font-weight:700;') + andere.map(w=>zeileV(w, w.branche!==br ? 'opacity:.7;' : '')).join('')
+      + zeileV(med, 'border-top:2px solid var(--border);', `<b>Median Vergleich</b> <span class="muted" style="font-size:11px;">(${basis===gleich ? 'gleiche Branche, '+gleich.length+' Werte' : 'alle '+andere.length+' Werte'})</span>`)
+      + `</tbody></table></div>`
+      + `<div class="muted" style="font-size:11px;margin-top:6px;">Branche ${escapeHtml(br||'–')}. Auswahl: Yahoo „Nutzer sahen sich auch an“ (keine echte Branchenliste) – Werte anderer Branchen blass und nicht im Median, solange es mindestens 2 aus der gleichen Branche gibt. Kennzahlen Yahoo (letzte 12 Monate, Wachstum = Quartal gegen Vorjahresquartal), 24 h zwischengespeichert. Keine Noten.</div>`;
     binden(); return;
   }
   // --- Bewertungskennzahlen ---
@@ -1094,7 +1171,11 @@ function kiBewTabSeite(el, d, sym){
   const eps = y=>y.gewinn!=null && y.aktien ? y.gewinn/y.aktien : null;
   const S0 = (_kiDivEps[S]||[])[0], S1 = (_kiDivEps[S]||[])[1];
   const kgvFwd = S0 && S0.eps>0 && kurs ? kurs/S0.eps : null;
-  const ltg = info && info.ltg!=null ? info.ltg*100 : null;
+  // PEG-Ersatz (Nutzer 18.11.2026): Yahoo liefert das Langfrist-Wachstum selten -> eigenes Gewinnwachstum je Aktie der letzten 5 GJ (SEC)
+  const ltgY = info && info.ltg!=null ? info.ltg*100 : null;
+  const eps5 = (()=>{ if(sec.length<6) return null; const a = sec[sec.length-6], b = sec[sec.length-1]; const ea = a.gewinn!=null && a.aktien ? a.gewinn/a.aktien : null, eb = b.gewinn!=null && b.aktien ? b.gewinn/b.aktien : null;
+    if(!(ea>0) || !(eb>0)) return null; const n = (new Date(b.date)-new Date(a.date))/31557600000; return n>0.5 ? (Math.pow(eb/ea, 1/n)-1)*100 : null; })();
+  const ltg = ltgY ?? eps5, ltgEigen = ltgY==null && eps5!=null;
   const jetzt = {
     kgv: eps(L)>0 && kurs ? kurs/eps(L) : null, kgvF: kgvFwd, peg: kgvFwd && ltg>0 ? kgvFwd/ltg : null,
     evU: ev && L.umsatz>0 ? ev/L.umsatz : null, evE: ev && ebitda(L)>0 ? ev/ebitda(L) : null, evB: ev && L.betrieb>0 ? ev/L.betrieb : null,
@@ -1109,7 +1190,7 @@ function kiBewTabSeite(el, d, sym){
       fcfR: mc && y.ocf!=null ? (y.ocf-(y.capex||0))/mc*100 : null, gewR: mc && y.gewinn!=null ? y.gewinn/mc*100 : null}; });
   const schnitt = key=>{ const w = hist.map(h=>h[key]).filter(v=>v!=null && isFinite(v) && v>0); return w.length>=3 ? w.reduce((a,b)=>a+b,0)/w.length : null; };
   const Z = [
-    ['KGV (GAAP, letzte 12 Monate bzw. GJ)', 'kgv', 'x', 'teuer'], ['KGV (erwartet, nächstes GJ)', 'kgvF', 'x', 'teuer', 'kgv'], ['PEG (KGV erwartet ÷ Langfrist-Wachstum)', 'peg', 'x2', 'teuer'],
+    ['KGV (GAAP, letzte 12 Monate bzw. GJ)', 'kgv', 'x', 'teuer'], ['KGV (erwartet, nächstes GJ)', 'kgvF', 'x', 'teuer', 'kgv'], [ltgEigen ? 'PEG (KGV erwartet ÷ Gewinnwachstum 5 J.)' : 'PEG (KGV erwartet ÷ Langfrist-Wachstum)', 'peg', 'x2', 'teuer'],
     ['EV / Umsatz', 'evU', 'x', 'teuer'], ['EV / EBITDA', 'evE', 'x', 'teuer'], ['EV / EBIT', 'evB', 'x', 'teuer'],
     ['Kurs / Umsatz (KUV)', 'kuv', 'x', 'teuer'], ['Kurs / Buchwert (KBV)', 'kbv', 'x', 'teuer'], ['Kurs / Cashflow (KCV)', 'kcv', 'x', 'teuer'],
     ['Gewinnrendite', 'gewR', '%', 'billig'], ['Free-Cashflow-Rendite', 'fcfR', '%', 'billig'],
@@ -1125,7 +1206,7 @@ function kiBewTabSeite(el, d, sym){
     + Z.map(zeile).join('') + `</tbody></table>`
     + `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;"><div class="panel" style="flex:1 1 320px;padding:10px 12px;font-size:12.5px;"><div style="font-weight:700;font-size:12px;letter-spacing:.04em;margin-bottom:6px;">KGV AUF SCHÄTZUNGEN</div>`
     + [S0, S1].filter(Boolean).map(s=>`<div>GJ ${escapeHtml(String(s.ende||'').slice(0,4))}: <b>${s.eps>0 && kurs ? kiNum(kurs/s.eps,1)+'×' : '–'}</b> <span class="muted">(Gewinn je Aktie ${kiNum(s.eps,2)}, ${s.analysten||'?'} Analysten)</span></div>`).join('')
-    + (ltg!=null ? `<div class="muted" style="margin-top:4px;">Langfrist-Wachstum (Analysten, Yahoo): ${kiNum(ltg,1)} % p. a.</div>` : '') + `</div></div>`
+    + (ltg!=null ? `<div class="muted" style="margin-top:4px;">${ltgEigen ? 'Gewinnwachstum je Aktie der letzten 5 Geschäftsjahre (SEC, Ersatz – Yahoo hat kein Langfrist-Wachstum)' : 'Langfrist-Wachstum (Analysten, Yahoo)'}: ${kiNum(ltg,1)} % p. a.</div>` : '') + `</div></div>`
     + `<div class="muted" style="font-size:11px;margin-top:6px;">Grün = günstiger als der eigene 5-Jahres-Schnitt (über 10 % Abstand), rot = teurer. Jetzt: Marktwert und Unternehmenswert von Yahoo, ${L.ttm ? 'letzte 12 Monate (4 Quartale bis '+escapeHtml(String(L.date).slice(0,7))+', SEC)' : 'Jahreszahlen des letzten Geschäftsjahres (SEC'+(L.date?', '+escapeHtml(String(L.date).slice(0,7)):'')+')'}. Im Schnitt: Unternehmenswert = Marktwert + Finanzschulden (ohne Kasse). Keine Branchenvergleiche, keine Noten.</div>`;
   binden();
 }
@@ -1205,7 +1286,7 @@ async function kiFitnessZeichnen(sym){
     }).catch(()=>{});
   }
   if(_kiFitFeld==='dividenden') return kiDividendenSeite(el, (d && Array.isArray(d.jahre)) ? d : {jahre:[]}, sym);   // auch ohne SEC (Nicht-US)
-  if(_kiFitFeld==='bewtab' || _kiFitFeld==='quartale') return kiBewTabSeite(el, (d && Array.isArray(d.jahre)) ? d : {jahre:[]}, sym);
+  if(KI_BT_FELDER.includes(_kiFitFeld)) return kiBewTabSeite(el, (d && Array.isArray(d.jahre)) ? d : {jahre:[]}, sym);
   if(!d || d.fehler || !(d.jahre||[]).length){ el.innerHTML = `<b style="font-size:15px;">Finanzielle Fitness</b> <span class="muted">· Fiscal fitness – ${escapeHtml((d && (d.fehler||d.error)) || 'keine Daten')}</span>`; return; }
   const feld = KI_FIT_FELDER.find(f=>f[0]===_kiFitFeld) || KI_FIT_FELDER[0];
   if(feld[0]==='tabelle') return kiFinanzTabelle(el, d, sym);
