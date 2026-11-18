@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.28 – 18.11.2026
+- **Dividend Kings und Champions** (Liste von dripinvesting.org, wöchentlich neu): in der Bewertungsliste als Auswahl „Dividend Kings“, „Dividend Champions“ oder beide – und im Chart zum Durchblättern mit ◀ ▶ (auch die ganze Liste mit Contendern und Challengern).
+
 ## 1.27 – 18.11.2026
 - Nach einem Update lädt der Browser sofort die neue Fassung (vorher konnte er eine Weile die alte zeigen).
 

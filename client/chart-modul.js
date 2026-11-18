@@ -200,6 +200,7 @@ function kiChartModal(){
       <span style="display:inline-flex;align-items:center;gap:4px;" title="Liste waehlen und mit ◀ ▶ (oder den Pfeiltasten) Aktie fuer Aktie durchgehen">
         <select id="kiBlaetterQuelle" style="padding:4px 6px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:12.5px;">
           <option value="depot">Meine Käufe</option><option value="watchlist">Watchlist</option>
+          <option value="ddb_king">Dividend Kings</option><option value="ddb_champion">Dividend Champions</option><option value="ddb_alle">Dividenden-Liste (alle)</option>
         </select>
         <button type="button" class="btn ghost" data-ki-blaettern="-1" title="Vorherige Aktie (Pfeil links)" style="padding:4px 10px;">◀</button>
         <span id="kiBlaetterPos" data-ki-blaettern-start="1" class="muted" title="Stelle in der Liste – Klick springt an den Anfang (1)" style="font-size:12px;min-width:46px;text-align:center;cursor:pointer;text-decoration:underline dotted;">–</span>
@@ -505,6 +506,9 @@ async function acListeLaden(){
   if(umfang==='depot' || umfang==='beide') (data.positions||[]).filter(p=>p.ticker && (p.shares||0)>0 && !/etf/i.test(p.sector||'')).forEach(p=>m.set(p.ticker, [p.name, p.sector||'']));
   if(umfang==='watch' || umfang==='beide') (data.watchlist||[]).forEach(w=>{ const y = w.ticker||w.symbol; if(y && !m.has(y)) m.set(y, [w.name, w.sector||'']); });
   if(umfang==='ki'){ if(!_ki.geladen) await kiLaden(); (_ki.analysen||[]).forEach(a=>m.set(kiSymbol(a), [a.name, (a.ddb&&a.ddb.sector)||''])); }
+  let ddbStand = '';
+  if(umfang.startsWith('ddb_')){ const j = await kiDdbLaden(); ddbStand = j.updatedAt ? String(j.updatedAt).slice(0,10).split('-').reverse().join('.') : '';
+    kiDdbFilter(j.stocks, umfang).forEach(s=>m.set(kiDdbSym(s), [`${s.name||s.symbol} · ${s.category==='King'?'👑 King':'🏆 Champion'}`, s.sector||''])); }
   const liste = [...m]; _acListe = [];
   const info = document.getElementById('acListeInfo'), knopf = document.getElementById('acListeLaden');
   knopf.disabled = true;
@@ -513,7 +517,7 @@ async function acListeLaden(){
     fertig++; info.textContent = `Berechne … ${fertig} von ${m.size}`; if(fertig%5===0) acListeZeichnen(); } };
   await Promise.all([arbeiter(), arbeiter(), arbeiter()]);
   knopf.disabled = false;
-  info.textContent = `${_acListe.length} Titel berechnet · Fair Value = Wert × ${kiNum(_kiFvr,1)} · grün = günstig (mehr als 10 % unter), rot = teuer · Spaltenkopf sortiert, Zeile öffnet den Chart.`;
+  info.textContent = `${_acListe.length} Titel berechnet${ddbStand ? ' · Liste dripinvesting.org vom '+ddbStand+' (wöchentlich neu)' : ''} · Fair Value = Wert × ${kiNum(_kiFvr,1)} · grün = günstig (mehr als 10 % unter), rot = teuer · Spaltenkopf sortiert, Zeile öffnet den Chart.`;
   acListeZeichnen();
 }
 function renderAktienChartSeite(){
@@ -574,8 +578,20 @@ function kiPlausibel(kurs, epsT, fv, ror, npe){
 // ---- Durchblaettern (17.11.2026): Depot (Positionen nach Name), Watchlist, KI-Analysen ----
 // Jeder Eintrag: {sym: was kiChartSymbolOeffnen bekommt, keys: alle Schreibweisen zum Wiederfinden}.
 let _kiBlaetterLaeuft = false;
+// Dividenden-Liste dripinvesting.org (Nutzer 18.11.2026: "als selbstaendige Watchlist, nur Kings / nur Champions, woechentlich"):
+// dividend-database.php holt den Datensatz neu, sobald er aelter als 7 Tage ist. King = 50+ Jahre Erhoehung, Champion = 25-49,
+// Contender = 10-24, Challenger = 5-9. Klassen-Aktien mit Punkt (BRK.B) heissen bei Yahoo mit Bindestrich.
+let _kiDdb = null;
+function kiDdbLaden(){ if(!_kiDdb) _kiDdb = fetch('dividend-database.php', {cache:'no-store'}).then(r=>r.json()).then(j=>(j && Array.isArray(j.stocks)) ? j : {stocks:[]}).catch(()=>{ _kiDdb = null; return {stocks:[]}; }); return _kiDdb; }
+function kiDdbFilter(stocks, art){ return (stocks||[]).filter(s=>art==='ddb_king' ? s.category==='King' : art==='ddb_champion' ? s.category==='Champion' : art==='ddb_kc' ? (s.category==='King' || s.category==='Champion') : true); }
+function kiDdbSym(s){ return String(s.symbol||'').toUpperCase().replace(/\./g, '-'); }
 async function kiBlaetterListe(quelle){
   const gross = x => String(x||'').toUpperCase();
+  if(String(quelle).startsWith('ddb_')){
+    const j = await kiDdbLaden();
+    return kiDdbFilter(j.stocks, quelle).slice().sort((a,b)=>String(a.name||a.symbol).localeCompare(String(b.name||b.symbol), 'de'))
+      .map(s=>({sym: kiDdbSym(s), name: s.name||'', keys: [kiDdbSym(s), gross(s.symbol)]}));
+  }
   if(quelle === 'watchlist'){
     return (data.watchlist||[]).filter(w=>w.ticker||w.symbol).map(w=>({sym: w.ticker||w.symbol, name: w.name||'', keys: [w.ticker, w.symbol, w.displaySymbol].filter(Boolean).map(gross)}));
   }
