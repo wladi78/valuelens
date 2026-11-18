@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.27 – 18.11.2026
+- Nach einem Update lädt der Browser sofort die neue Fassung (vorher konnte er eine Weile die alte zeigen).
+
 ## 1.26 – 18.11.2026
 - Vergleichsunternehmen: zusätzlich Werte der gleichen Branche aus deinen Käufen und deiner Watchlist; Klick auf ein Symbol öffnet dessen Chart.
 - Hinweis auf Einmaleffekte: Gewinn je Aktie springt, Betriebsergebnis nicht – bzw. KGV der letzten 12 Monate weit unter dem erwarteten.

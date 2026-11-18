@@ -3,6 +3,8 @@
 // Filtern, eigene Kaeufe im Chart, Kursalarme mit Telegram. Start ueber start.bat / start.command (php -S 127.0.0.1).
 require_once __DIR__ . '/session-init.php';
 $csrf = json_encode($_SESSION['csrfToken']);
+// Versionsnummer an Skripte/Stil haengen: sonst zeigt der Browser nach einem Update noch die alte Fassung (18.11.2026)
+$vlV = rawurlencode(trim((string) @file_get_contents(__DIR__ . '/VERSION')));
 ?><!doctype html>
 <html lang="de">
 <head>
@@ -10,8 +12,8 @@ $csrf = json_encode($_SESSION['csrfToken']);
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ValueLens</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='14' cy='14' r='9' fill='none' stroke='%2310b981' stroke-width='4'/><line x1='21' y1='21' x2='29' y2='29' stroke='%2310b981' stroke-width='4' stroke-linecap='round'/></svg>">
-<script src="client/lib/chart.umd.min.js"></script>
-<link rel="stylesheet" href="client/valuelens.css">
+<script src="client/lib/chart.umd.min.js?v=<?= $vlV ?>"></script>
+<link rel="stylesheet" href="client/valuelens.css?v=<?= $vlV ?>">
 <meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrfToken']) ?>">
 <meta name="vl-modus" content="<?= defined('VL_WEB') ? 'web' : 'lokal' ?>">
 </head>
@@ -190,10 +192,10 @@ $csrf = json_encode($_SESSION['csrfToken']);
   </section>
 </main>
 <div class="modal-overlay" id="neuOverlay"><div class="modal" style="max-width:560px;"><h2 style="margin-top:0;font-size:17px;" id="neuTitel">Neu in ValueLens</h2><div id="neuInhalt"></div><div style="text-align:right;margin-top:12px;"><button class="btn primary" id="neuZu">Verstanden</button></div></div></div>
-<script src="client/app.js"></script>
-<script src="client/hilfsfunktionen.js"></script>
-<script src="client/chart-modul.js"></script>
-<script src="client/alarm-meldeweg.js"></script>
-<script src="client/telegram-einrichtung.js"></script>
+<script src="client/app.js?v=<?= $vlV ?>"></script>
+<script src="client/hilfsfunktionen.js?v=<?= $vlV ?>"></script>
+<script src="client/chart-modul.js?v=<?= $vlV ?>"></script>
+<script src="client/alarm-meldeweg.js?v=<?= $vlV ?>"></script>
+<script src="client/telegram-einrichtung.js?v=<?= $vlV ?>"></script>
 </body>
 </html>
