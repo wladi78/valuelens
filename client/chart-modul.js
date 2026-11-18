@@ -546,14 +546,16 @@ async function bbLaden(){
   const d = await bbServer(true);
   _bbZeilen = (d.zeilen||[]).filter(z=>bbAuswahl(z, sel.value)).map(z=>Object.assign({}, z, {laedt:false}));
   bbZeichnen();
-  // Titel ohne Server-Bewertung (neu in der Liste, Nachtlauf noch nicht durch) hier nachbewerten - hoechstens 60
-  const offen = _bbZeilen.filter(z=>z.q.summe>=15 && !z.q.aus && z.r2==null && z.r3==null).slice(0, 60); offen.forEach(z=>z.laedt = true);
-  let fertig = 0; const n0 = offen.length;
-  const arbeiter = async ()=>{ while(offen.length){ const z = offen.shift();
-    try{ const b = await acBewertungZeile(z.sym, z.name, z.sector); if(b && b.abwN!=null && isFinite(b.abwN)) z.r2 = 1 + b.abwN/100; z.basis = b && (b.basis || b.fehler); } catch(e){}
-    if(z.rec==null){ try{ const i = await kiInfoLaden(z.sym); if(i && isFinite(Number(i.urteilWert))) z.rec = Math.round((6 - Number(i.urteilWert))*100)/100; } catch(e){} }
-    z.laedt = false; fertig++; info.textContent = `Bewerte fehlende Titel … ${fertig} von ${n0}`; if(fertig%4===0) bbZeichnen(); } };
-  await Promise.all([arbeiter(), arbeiter(), arbeiter()]);
+  // Fehlen noch Bewertungen (Nachtlauf noch nicht durch), rechnet der Server stueckweise weiter - Ergebnis gilt dann fuer alle
+  let dd = d, schritte = 0;
+  while(dd && dd.offen>0 && schritte<60 && document.getElementById('bbSektor')===sel){
+    info.textContent = `Server bewertet … noch ${dd.offen} Titel offen (einmalig, danach sofort da)`;
+    const n = await fetch('bigboard.php?schritt=1', {cache:'no-store'}).then(r=>r.json()).catch(()=>null);
+    if(!n || !n.zeilen) break; if(n.beschaeftigt) await new Promise(r=>setTimeout(r,5000));
+    dd = n; _bbServerP = Promise.resolve(n); schritte++;
+    _bbZeilen = (n.zeilen||[]).filter(z=>bbAuswahl(z, sel.value)); bbZeichnen();
+  }
+  d.ddbStand = dd.ddbStand; d.stand = dd.stand; d.fmpSperre = dd.fmpSperre;
   knopf.disabled = false;
   const dat = s=>s ? String(s).slice(0,10).split('-').reverse().join('.') : '–';
   info.textContent = `${sel.options[sel.selectedIndex].text}: ${_bbZeilen.length} Dividendenwerte (Liste dripinvesting.org vom ${dat(d.ddbStand)}, gerechnet ${dat(d.stand)}) · ${_bbZeilen.filter(bbBestBet).length} Best Bets${d.fmpSperre ? ' · FMP-DCF nicht verfügbar' : ''} · Regelausgabe, keine Anlageberatung.`;
@@ -587,7 +589,7 @@ function bbZeichnen(){
     + l.map(z=>{ const p = bbPfp(z), fb = bbFarbeBew(p), q = z.q;
       const kopfZeile = gruppe && z.sector!==letzterSek ? `<tr><td colspan="${sp.length}" style="padding:7px 8px 4px;font-weight:700;background:var(--surface-hover);border-top:2px solid var(--border);">${escapeHtml(z.sector||'–')} <span class="muted" style="font-weight:400;">(${l.filter(x=>x.sector===z.sector).length})</span></td></tr>` : '';
       letzterSek = z.sector;
-      return kopfZeile + `<tr data-bb-sym="${escapeHtml(z.sym)}" style="cursor:pointer;"><td><b>${escapeHtml(z.sym)}</b></td><td>${escapeHtml(String(z.name||'').slice(0,26))}</td><td class="muted" style="font-size:11px;white-space:nowrap;" title="${z.etf?'im State-Street-ETF '+z.etf+' (S&P 500)':''}">${escapeHtml(z.sector||'')}${z.etf?` <b title="im ${z.etf} (S&P 500)">${z.etf}</b>`:''}</td><td style="font-size:11.5px;white-space:nowrap;">${escapeHtml(String(z.industry||'').slice(0,30))}</td><td style="white-space:nowrap;">${escapeHtml(KI_DDB_ZEICHEN_BB[z.category]||z.category||'')}</td>
+      return kopfZeile + `<tr data-bb-sym="${escapeHtml(z.sym)}" style="cursor:pointer;"><td><b>${escapeHtml(z.sym)}</b></td><td>${escapeHtml(String(z.name||'').slice(0,26))}</td><td class="muted" style="font-size:11px;white-space:nowrap;" title="${z.etf?'im State-Street-ETF '+z.etf+' (S&P 500)':''}">${escapeHtml(z.sector||'')}${z.etf?` <b title="im ${z.etf} (S&P 500)">${z.etf}</b>`:''}</td><td style="font-size:11.5px;white-space:nowrap;">${escapeHtml(String(z.industry||'').slice(0,30))}</td><td style="white-space:nowrap;">${escapeHtml(KI_DDB_ZEICHEN_BB[z.category]||z.category||'')}${z.adr?` <span title="Ausländischer Wert (ADR), Erhöhungen aus ${escapeHtml(z.adr)} in Landeswährung" style="cursor:help;">🌍</span>`:''}</td>
         <td style="${FB[qf(z)]}white-space:nowrap;" title="Profitabilität ${q.prof??'–'} · Finanzkraft ${q.finK??'–'} · Dividendensicherheit ${q.sich??'–'} (Ausschüttung Gewinn ${q.epsQ!=null?kiNum(q.epsQ*100,0)+' %':'–'}, Cashflow ${q.cfQ!=null?kiNum(q.cfQ*100,0)+' %':'–'}) · Historie ${q.hist??'–'} · Wachstum ${q.wachs}${q.aus?' – ausgeschieden (0 Punkte auf einer Kennzahl)':''}"><b>${q.summe}</b> <span class="muted">(${[q.prof,q.finK,q.sich,q.hist,q.wachs].map(v=>v??'–').join('·')})</span>${q.aus?' ✖':''}</td>
         <td>${n(z.divYield,2)} %</td><td>${n(z.dgr5y)} %${z.k.sonder?' <span title="Sonderdividenden verzerren das 5-J.-Wachstum – Kraft nach 10 J., Renditebewertung ausgelassen" style="color:#d97706;cursor:help;">ⓢ</span>':''}</td><td>${n(z.dgr1y)} %</td>
         <td style="${FB[z.k.farbe]||''}" title="Wachstum für die Matrix: ${n(z.k.g)} %">${z.k.farbe==='gruen'?'stark':z.k.farbe==='gelb'?'gut':z.k.farbe==='orange'?(z.k.bremse?'Bremse':'schwach'):'–'}</td>
@@ -596,7 +598,7 @@ function bbZeichnen(){
         <td style="${FB[bbFarbeBew(z.r3)]||''}" title="Financial Modeling Prep, DCF">${z.r3!=null?kiNum(z.r3,2):'–'}</td>
         <td style="${FB[fb]||''}"><b>${p!=null?kiNum(p,2):'–'}</b></td><td style="${FB[fb]||''}">${fb==='gruen'?'Unter':fb==='gelb'?'Fair':fb==='orange'?'Über':'–'}</td><td>${p && z.price ? kiNum(z.price/p,2) : '–'}</td>
         <td style="${FB[bbFarbeRec(z.rec)]||''}" title="Analystenschnitt Yahoo, gedreht auf 5 = starker Kauf; unter 2,75 orange, ab 3,75 grün">${z.rec!=null?kiNum(z.rec,2):'–'}</td><td style="text-align:center;">${bbBestBet(z)?'✅':''}</td>
-        <td style="white-space:nowrap;"><button type="button" class="range-btn" data-bb-tab="bewertung" title="Chart, Reiter Bewertung">📈</button><button type="button" class="range-btn" data-bb-tab="fitness" title="Finanzielle Fitness">💪</button><button type="button" class="range-btn" data-bb-tab="div" title="Dividende">💰</button></td></tr>`; }).join('') + `</tbody>`;
+        <td style="white-space:nowrap;"><button type="button" class="range-btn" data-bb-tab="bewertung" title="Chart, Reiter Bewertung">📈</button><button type="button" class="range-btn" data-bb-tab="fitness" title="Finanzielle Fitness">💪</button><button type="button" class="range-btn" data-bb-tab="divseite" title="Dividenden-Übersicht (Fitness → Dividenden)">💰</button></td></tr>`; }).join('') + `</tbody>`;
 }
 // Monatskauf (Nutzer 18.11.2026: "Big Board in Monatsaktien einfuegen"): Best Bets in Sektoren unter Soll unter dem Kaufvorschlag
 async function bbMonatskauf(el, unterSoll){
@@ -613,7 +615,10 @@ document.addEventListener('click', e=>{
   if(e.target.closest('#bbLaden')){ bbLaden(); return; }
   const th = e.target.closest('[data-bb-sort]'); if(th){ const k = th.dataset.bbSort; _bbSort = {k, auf: _bbSort.k===k ? !_bbSort.auf : (k==='sym'||k==='pfp'||k==='sek')}; bbZeichnen(); return; }
   if(e.target.closest('[data-bb-allebest]')){ const s = document.getElementById('bbSektor'), b = document.getElementById('bbNurBest'); if(s) s.value = 'alle'; if(b) b.checked = true; _bbGruppe = true; _bbSort = {k:'pfp', auf:true}; bbLaden(); return; }
-  const r = e.target.closest('[data-bb-sym]'); if(r){ e.preventDefault(); const tb = e.target.closest('[data-bb-tab]'); kiTabSetzen(tb ? tb.dataset.bbTab : 'bewertung'); kiChartSymbolOeffnen(r.dataset.bbSym); }
+  const r = e.target.closest('[data-bb-sym]'); if(r){ e.preventDefault(); const tb = e.target.closest('[data-bb-tab]'); const ziel = tb ? tb.dataset.bbTab : 'bewertung';
+    // 💰 = Dividenden-Uebersicht aus der Fitness (Nutzer 18.11.2026: "hier diese Seite anzeigen"), 💪 = Fitness-Grafiken
+    if(ziel==='divseite'){ _kiFitFeld = 'dividenden'; _kiDivAnsicht = 'uebersicht'; kiTabSetzen('fitness'); } else { if(ziel==='fitness') _kiFitFeld = 'fcfdiv'; kiTabSetzen(ziel); }
+    kiChartSymbolOeffnen(r.dataset.bbSym); }
 });
 document.addEventListener('change', e=>{ if(e.target && e.target.id==='bbSektor') _bbGruppe = false; if(e.target && (e.target.id==='bbNurBest' || e.target.id==='bbNurQ' || e.target.id==='bbNurSp')) bbZeichnen(); });
 function renderAktienChartSeite(){

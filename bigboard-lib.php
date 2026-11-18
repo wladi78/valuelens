@@ -140,17 +140,63 @@ function bb_sektor_etfs(): array {
     return $m;
 }
 
+// Auslaendische Dividendenwerte als ADR (Nutzer 18.11.2026: "ja" - die Dividend-Champions-Liste fuehrt nur US-Werte; Van Knapp
+// nimmt z. B. Sanofi). Erhoehungen und Wachstum aus der Heimatboerse in Landeswaehrung (wie Simply Safe Dividends, sonst verfaelscht der
+// Wechselkurs die Serie), Rendite/Margen/Schulden aus Yahoo. Aufnahme wie bei ihm erst ab 5 Jahren Erhoehung. 7 Tage zwischengespeichert.
+const BB_ADR = ['SNY' => 'SAN.PA', 'NVS' => 'NOVN.SW', 'AZN' => 'AZN.L', 'GSK' => 'GSK.L', 'NVO' => 'NOVO-B.CO', 'UL' => 'ULVR.L', 'DEO' => 'DGE.L',
+    'BTI' => 'BATS.L', 'TTE' => 'TTE.PA', 'SHEL' => 'SHEL.L', 'BP' => 'BP.L', 'BHP' => 'BHP.AX', 'RIO' => 'RIO.L', 'TD' => 'TD.TO', 'RY' => 'RY.TO',
+    'BNS' => 'BNS.TO', 'BMO' => 'BMO.TO', 'CM' => 'CM.TO', 'SAP' => 'SAP.DE', 'NGG' => 'NG.L', 'BCE' => 'BCE.TO', 'TU' => 'T.TO', 'MFC' => 'MFC.TO',
+    'SLF' => 'SLF.TO', 'CNI' => 'CNR.TO', 'CP' => 'CP.TO', 'ASML' => 'ASML.AS', 'TSM' => '2330.TW', 'NSRGY' => 'NESN.SW', 'RHHBY' => 'ROG.SW'];
+function bb_adr_stocks(int $budget, array $schonDa): array {
+    $f = __DIR__ . '/data/cache/bb-adr.json';
+    $alt = json_decode((string) @file_get_contents($f), true) ?: [];
+    if (!empty($alt['stocks']) && strtotime($alt['stand'] ?? '2000-01-01') > time() - 7 * 86400) return $alt['stocks'];
+    if ($budget <= 0) return $alt['stocks'] ?? [];
+    $start = time(); $out = []; $fertig = true;
+    foreach (BB_ADR as $adr => $heim) {
+        if (isset($schonDa[$adr])) continue;
+        if (time() - $start > $budget) { $fertig = false; foreach ($alt['stocks'] ?? [] as $s) if ($s['symbol'] === $adr) $out[] = $s; continue; }
+        try {
+            $q = bewertung_ohlc($heim, 16); $i = firmen_info($adr);
+            if (!$q || !empty($i['fehler'])) continue;
+            $jahr = []; foreach ($q['dividenden'] as [$dt, $b]) { $y = (int) substr($dt, 0, 4); if ($y < (int) date('Y')) $jahr[$y] = ($jahr[$y] ?? 0) + $b; }
+            if (count($jahr) < 3) continue;
+            ksort($jahr); $ys = array_keys($jahr); $last = end($ys);
+            $folge = 0; $y = $last; while (isset($jahr[$y - 1]) && $jahr[$y] > $jahr[$y - 1] * 1.0001) { $folge++; $y--; }
+            if ($folge < 5) continue;
+            $dgr = fn($n) => (isset($jahr[$last - $n]) && $jahr[$last - $n] > 0) ? (pow($jahr[$last] / $jahr[$last - $n], 1 / $n) - 1) * 100 : null;
+            $de = $i['schuldenEK'] ?? null;
+            $out[] = ['symbol' => $adr, 'name' => $i['name'] ?? $adr, 'sector' => $i['sektor'] ?? '', 'industry' => $i['branche'] ?? '',
+                'category' => $folge >= 50 ? 'King' : ($folge >= 25 ? 'Champion' : ($folge >= 10 ? 'Contender' : 'Challenger')),
+                'price' => $i['kurs'] ?? $i['vortag'] ?? null, 'divYield' => isset($i['divRendite']) ? $i['divRendite'] * 100 : null,
+                'avgYield5y' => $i['fuenfJRendite'] ?? null, 'annualDividend' => $i['divRate'] ?? null, 'pe' => $i['kgv'] ?? null,
+                'dgr1y' => $dgr(1), 'dgr3y' => $dgr(3), 'dgr5y' => $dgr(5), 'dgr10y' => $dgr(10),
+                'roe' => isset($i['roe']) ? $i['roe'] * 100 : null, 'npm' => isset($i['nettomarge']) ? $i['nettomarge'] * 100 : null, 'rotc' => null,
+                'debtCapital' => is_numeric($de) && $de >= 0 ? $de / (100 + $de) : null, 'currentRatio' => $i['liquiditaet'] ?? null, 'cfPerShare' => null,
+                'revenue1y' => isset($i['umsatzWachstum']) ? $i['umsatzWachstum'] * 100 : null, 'adr' => $heim, 'folge' => $folge];
+        } catch (Throwable $e) {}
+    }
+    if ($fertig) { if (!is_dir(dirname($f))) @mkdir(dirname($f), 0700, true); @file_put_contents($f, json_encode(['stand' => date('c'), 'stocks' => $out], JSON_UNESCAPED_UNICODE)); }
+    return $out;
+}
+
 // Rechnet alle Titel der Dividenden-Liste. Bewertung (2)/(3) und Empfehlung nur fuer Q >= 15 und nicht ausgeschieden; Zeitbudget
 // in Sekunden - was nicht drankommt, behaelt die Werte des letzten Laufs.
 function bb_rechnen(int $budget = 1500): array {
     $start = time();
+    // nur ein Lauf zugleich (Nachtlauf und Seiten-Schritte); wer warten muesste, bekommt den letzten Stand
+    $lk = @fopen(__DIR__ . '/data/cache/bigboard.lock', 'c'); if (!$lk && !is_dir(__DIR__ . '/data/cache')) { @mkdir(__DIR__ . '/data/cache', 0700, true); $lk = @fopen(__DIR__ . '/data/cache/bigboard.lock', 'c'); }
+    if ($lk && !flock($lk, LOCK_EX | LOCK_NB)) { $d = json_decode((string) @file_get_contents(bb_datei()), true); if (is_array($d)) { $d['beschaeftigt'] = true; return $d; } flock($lk, LOCK_EX); }
     $alt = json_decode((string) @file_get_contents(bb_datei()), true) ?: [];
     $altZ = []; foreach ($alt['zeilen'] ?? [] as $z) $altZ[$z['sym']] = $z;
     $ddb = ddb_get(); $zeilen = []; $fmpSperre = $alt['fmpSperre'] ?? null;
     if ($fmpSperre && strtotime($alt['stand'] ?? '2000-01-01') < time() - 7 * 86400) $fmpSperre = null;   // woechentlich neu versuchen
     $gesperrt = $fmpSperre; $neuBewertet = 0;
     $etfs = bb_sektor_etfs();
-    foreach ($ddb['stocks'] ?? [] as $s) {
+    $quellen = $ddb['stocks'] ?? []; $da = []; foreach ($quellen as $s) $da[str_replace('.', '-', strtoupper((string) ($s['symbol'] ?? '')))] = true;
+    foreach (bb_adr_stocks(max(0, min(60, $budget)), $da) as $s) $quellen[] = $s;
+    $offen = 0;
+    foreach ($quellen as $s) {
         $sym = str_replace('.', '-', strtoupper((string) ($s['symbol'] ?? ''))); if ($sym === '') continue;
         $q = bb_qualitaet($s); $k = bb_kraft($s);
         $r1 = !bb_sonder($s) && ($s['divYield'] ?? 0) > 0 && ($s['avgYield5y'] ?? 0) > 0 ? $s['avgYield5y'] / $s['divYield'] : null;
@@ -158,7 +204,7 @@ function bb_rechnen(int $budget = 1500): array {
             'price' => $s['price'] ?? null, 'divYield' => $s['divYield'] ?? null, 'avgYield5y' => $s['avgYield5y'] ?? null, 'dgr1y' => $s['dgr1y'] ?? null,
             'dgr5y' => $s['dgr5y'] ?? null, 'dgr10y' => $s['dgr10y'] ?? null, 'etf' => $etfs[$sym] ?? null, 'q' => $q, 'k' => $k, 'r1' => $r1,
             'r2' => $altZ[$sym]['r2'] ?? null, 'r3' => $altZ[$sym]['r3'] ?? null, 'basis' => $altZ[$sym]['basis'] ?? null, 'rec' => $altZ[$sym]['rec'] ?? null,
-            'bewertet' => $altZ[$sym]['bewertet'] ?? null];
+            'bewertet' => $altZ[$sym]['bewertet'] ?? null, 'adr' => $s['adr'] ?? null];
         $kandidat = $q['summe'] >= 15 && !$q['aus'];
         $frisch = $z['bewertet'] && strtotime($z['bewertet']) > time() - 20 * 3600;
         if ($kandidat && !$frisch && time() - $start < $budget) {
@@ -170,14 +216,15 @@ function bb_rechnen(int $budget = 1500): array {
                 $i = firmen_info($sym); $mw = $i['urteilWert'] ?? null; $z['rec'] = is_numeric($mw) ? round(6 - (float) $mw, 2) : null;
                 $z['bewertet'] = date('c'); $neuBewertet++;
             } catch (Throwable $e) {}
-        }
+        } elseif ($kandidat && !$frisch) $offen++;
         $z['pfp'] = bb_pfp($z); $z['best'] = bb_best($z);
         $zeilen[] = $z;
     }
     $out = ['stand' => date('c'), 'ddbStand' => $ddb['updatedAt'] ?? null, 'anzahl' => count($zeilen), 'neuBewertet' => $neuBewertet,
-        'fmpSperre' => $gesperrt ?: null, 'etfMitglieder' => count($etfs), 'zeilen' => $zeilen];
+        'fmpSperre' => $gesperrt ?: null, 'etfMitglieder' => count($etfs), 'offen' => $offen, 'zeilen' => $zeilen];
     if (!is_dir(dirname(bb_datei()))) @mkdir(dirname(bb_datei()), 0700, true);
     $tmp = bb_datei() . '.tmp'; if (@file_put_contents($tmp, json_encode($out, JSON_UNESCAPED_UNICODE)) !== false) @rename($tmp, bb_datei());
+    if ($lk) { flock($lk, LOCK_UN); fclose($lk); }
     return $out;
 }
 function bb_laden(): array {

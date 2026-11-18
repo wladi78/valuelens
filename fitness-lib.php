@@ -206,7 +206,7 @@ function fitness_daten($symbol, $neu = false) {
 // deren Schaetzungshistorie es frei nicht gibt). Yahoo quoteSummary, 1 Tag Cache. S&P-Kreditrating gibt es frei nicht.
 function firmen_info($symbol) {
     $dir = __DIR__ . '/data/cache/fitness';
-    $datei = $dir . '/info4_' . preg_replace('/[^A-Z0-9.\-]/', '_', $symbol) . '.json';
+    $datei = $dir . '/info5_' . preg_replace('/[^A-Z0-9.\-]/', '_', $symbol) . '.json';
     if (is_file($datei) && time() - filemtime($datei) < 86400) { $c = json_decode((string) file_get_contents($datei), true); if (is_array($c)) return $c; }
     $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
     $sess = yahoo_get_session($ua);
@@ -231,6 +231,9 @@ function firmen_info($symbol) {
         'bruttomarge' => $r($fd, 'grossMargins'), 'opMarge' => $r($fd, 'operatingMargins'), 'nettomarge' => $r($fd, 'profitMargins'), 'roe' => $r($fd, 'returnOnEquity'),
         'evEbitda' => $r($ks, 'enterpriseToEbitda'), 'evUmsatz' => $r($ks, 'enterpriseToRevenue'), 'kbv' => $r($ks, 'priceToBook'), 'kuv' => $r($sd, 'priceToSalesTrailing12Months'),
         'perf52' => $r($ks, '52WeekChange'), 'spPerf52' => $r($ks, 'SandP52WeekChange'),
+        // Big Board fuer auslaendische ADRs (Nutzer 18.11.2026)
+        'kurs' => $r($pr, 'regularMarketPrice'), 'fuenfJRendite' => $r($sd, 'fiveYearAvgDividendYield'), 'divRate' => $r($sd, 'dividendRate') ?? $r($sd, 'trailingAnnualDividendRate'),
+        'ausschuettung' => $r($sd, 'payoutRatio'), 'schuldenEK' => $r($fd, 'debtToEquity'), 'liquiditaet' => $r($fd, 'currentRatio'),
     ];
     foreach ($q['earningsHistory']['history'] ?? [] as $h) {
         $out['quartale'][] = ['quartal' => $h['quarter']['fmt'] ?? null, 'schaetzung' => $r($h, 'epsEstimate'), 'ist' => $r($h, 'epsActual'), 'abweichung' => $r($h, 'surprisePercent')];

@@ -1,5 +1,10 @@
 # Änderungen
 
+## 1.35 – 18.11.2026
+- Big Board: fehlende Bewertungen rechnet der Server jetzt nach, bis alle Best Bets da sind (vorher höchstens 60).
+- Auch ausländische Dividendenwerte (z. B. Sanofi, Novartis, Nestlé, TD, Royal Bank) – Erhöhungen in Landeswährung gezählt, ab 5 Jahren (🌍).
+- 💰 öffnet die Dividenden-Übersicht.
+
 ## 1.34 – 18.11.2026
 - Big Board: Spalten Branche und Signal (Unter/Fair/Über), Sortier-Knöpfe, je Zeile Knöpfe für Bewertung/Fitness/Dividende und „⭐ Best Bets aller Sektoren“ als Liste nach Sektor.
 
