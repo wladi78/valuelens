@@ -89,14 +89,15 @@ $vlV = rawurlencode(trim((string) @file_get_contents(__DIR__ . '/VERSION')));
     <div class="panel">
       <div class="table-head"><h2>🏛️ Big Board – Dividendenwachstum je Sektor</h2>
         <div class="zeile">
-          <select id="bbSektor"><option>Consumer Defensive</option><option>Utilities</option><option>Healthcare</option><option>Real Estate</option><option>Financial Services</option><option>Industrials</option><option>Energy</option><option>Technology</option><option>Basic Materials</option><option>Consumer Cyclical</option><option>Communication Services</option></select>
+          <select id="bbSektor"><optgroup label="Sektor"><option value="sek:Consumer Defensive">Consumer Staples</option><option value="sek:Utilities">Utilities</option><option value="sek:Healthcare">Health Care</option><option value="sek:Real Estate">Real Estate</option><option value="sek:Financial Services">Financials</option><option value="sek:Industrials">Industrials</option><option value="sek:Energy">Energy</option><option value="sek:Technology">Technology</option><option value="sek:Basic Materials">Materials</option><option value="sek:Consumer Cyclical">Consumer Discretionary</option><option value="sek:Communication Services">Communication Services</option></optgroup><optgroup label="Auswahl"><option value="versicherung">Versicherungen</option><option value="banken">Banken</option><option value="kings">Dividend Kings</option><option value="kc">Kings + Champions</option><option value="rendite25">Rendite ≥ 2,5 % (alle Sektoren)</option><option value="q22">Qualität ≥ 22 (alle Sektoren)</option><option value="alle">alle Dividendenwerte</option></optgroup></select>
           <label class="klein"><input type="checkbox" id="bbNurQ"> nur Qualität ≥ 15</label>
           <label class="klein"><input type="checkbox" id="bbNurBest"> nur Best Bets</label>
+          <label class="klein" title="wie die State-Street-Sektor-ETFs (XLP, XLU …), mit denen Van Knapp startet"><input type="checkbox" id="bbNurSp"> nur S&amp;P 500</label>
           <button class="btn primary" id="bbLaden" type="button">Sektor prüfen</button>
         </div>
       </div>
       <div class="innen">
-        <div class="muted klein" id="bbInfo">Verfahren nach Dave Van Knapp, nur mit freien Daten: Qualität (Profitabilität, Finanzkraft, Dividendensicherheit, Erhöhungs-Historie, Wachstum – je 0–5, ab 15 investierbar), Dividenden-Kraft (Rendite × 5-J.-Wachstum) und Bewertung (Rendite gegen 5-J.-Schnitt, Kurs gegen Normal-KGV-Wert). Best Bet = Qualität ≥ 15 und nirgends orange. Zeile öffnet den Chart. Regelausgabe, keine Anlageberatung.</div>
+        <div class="muted klein" id="bbInfo">Verfahren nach Dave Van Knapp, nur mit freien Daten: Qualität (Profitabilität, Finanzkraft, Dividendensicherheit, Erhöhungs-Historie, Wachstum – je 0–5, ab 15 investierbar), Dividenden-Kraft (Rendite × Wachstum), Bewertung (Rendite gegen 5-J.-Schnitt, Kurs gegen Normal-KGV-Wert) und Analysten. Best Bet = Qualität ≥ 15, keine Kennzahl mit 0 Punkten, nirgends orange. Nachts gerechnet (Nachtlauf). Zeile öffnet den Chart. Regelausgabe, keine Anlageberatung.</div>
         <div class="table-scroll"><table class="data-table" id="bbTab"></table></div>
       </div>
     </div>

@@ -141,6 +141,19 @@ foreach (glob($dataDir . '/depot_*.json') ?: [] as $df) {
     flock($fp, LOCK_UN); fclose($fp);
 }
 
+// Big Board (Van Knapps Verfahren, bigboard-lib.php) nachts rechnen; am 1. des Monats Best Bets je Sektor melden (Nutzer 18.11.2026).
+// Fehler nur ins eigene Protokoll - nie auf die Fehlerausgabe (Cron-Mail).
+try {
+    require_once __DIR__ . '/bigboard-lib.php';
+    $bb = bb_rechnen(1500);
+    echo 'Big Board: ', $bb['anzahl'], ' Titel, ', $bb['neuBewertet'], ' neu bewertet, ', count(array_filter($bb['zeilen'], fn($z) => $z['best'])), ' Best Bets', $bb['fmpSperre'] ? ' (FMP: ' . $bb['fmpSperre'] . ')' : '', "\n";
+    $bbState = $dataDir . '/bigboard_bericht.json'; $bbAlt = json_decode((string) @file_get_contents($bbState), true) ?: [];
+    if ((int) date('j') === 1 && ($bbAlt['monat'] ?? '') !== date('Y-m')) {
+        $bbText = bb_bericht_text($bb);
+        if ($bbText !== '' && capolio_melden($dataDir, 'analysen', $bbText)) @file_put_contents($bbState, json_encode(['monat' => date('Y-m'), 'stand' => date('c')]), LOCK_EX);
+    }
+} catch (Throwable $e) { @file_put_contents($dataDir . '/bigboard_fehler.log', date('c') . ' ' . $e->getMessage() . "\n", FILE_APPEND); }
+
 $gesendet = true;
 if ($neu || $weg) $gesendet = capolio_melden($dataDir, 'analysen', $text);
 if (!$gesendet) { fwrite(STDERR, "Telegram-Versand fehlgeschlagen\n"); exit(1); }

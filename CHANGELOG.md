@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.31 – 18.11.2026
+- Big Board nach allen Sektor-Artikeln von Dave Van Knapp abgeglichen: Auswahl auch nach Versicherungen, Banken, Kings, Rendite ≥ 2,5 %, Qualität ≥ 22 und „nur S&P 500“; Spalte Analysten (5 = Kauf); Sonderdividenden werden erkannt; eine Kennzahl mit 0 Punkten scheidet aus.
+- Das Big Board wird jetzt im Nachtlauf gerechnet und erscheint sofort.
+
 ## 1.30 – 18.11.2026
 - Neu unter Watchlist & Filter: **Big Board je Sektor** – Dividendenwachstums-Werte nach dem Verfahren von Dave Van Knapp, nur mit freien Daten: Qualität (25 Punkte), Dividenden-Kraft (Rendite × Wachstum), Bewertung (Rendite gegen 5-Jahres-Schnitt und Normal-KGV) und „Best Bets“ ohne Warnfarbe.
 
