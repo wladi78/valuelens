@@ -224,8 +224,40 @@ function bb_rechnen(int $budget = 1500): array {
         'fmpSperre' => $gesperrt ?: null, 'etfMitglieder' => count($etfs), 'offen' => $offen, 'zeilen' => $zeilen];
     if (!is_dir(dirname(bb_datei()))) @mkdir(dirname(bb_datei()), 0700, true);
     $tmp = bb_datei() . '.tmp'; if (@file_put_contents($tmp, json_encode($out, JSON_UNESCAPED_UNICODE)) !== false) @rename($tmp, bb_datei());
+    if ($offen === 0) bb_verlauf_sichern($out);
     if ($lk) { flock($lk, LOCK_UN); fclose($lk); }
     return $out;
+}
+
+/* Verlauf (Nutzer 18./19.11.2026, "mach 10"): einmal je Monat die Best Bets mit Kurs festhalten, dazu SPY als S&P-500-Massstab.
+   Nach 12 Monaten zeigt bb_verlauf_auswertung(), ob die Auswahl den Index geschlagen hat (Kursentwicklung, ohne Dividenden). */
+function bb_verlauf_ordner() { return __DIR__ . '/data/cache/bigboard_verlauf'; }
+function bb_yahoo_kurs(string $sym) {
+    $ch = curl_init('https://query1.finance.yahoo.com/v8/finance/chart/' . rawurlencode($sym) . '?range=5d&interval=1d');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10, CURLOPT_USERAGENT => 'Mozilla/5.0 (Capolio)']);
+    $j = json_decode((string) curl_exec($ch), true); curl_close($ch);
+    $k = $j['chart']['result'][0]['meta']['regularMarketPrice'] ?? null;
+    return is_numeric($k) && $k > 0 ? (float) $k : null;
+}
+function bb_verlauf_sichern(array $d): void {
+    $dir = bb_verlauf_ordner(); $f = $dir . '/' . date('Y-m') . '.json';
+    if (is_file($f)) return;
+    $best = [];
+    foreach ($d['zeilen'] ?? [] as $z) if (!empty($z['best']) && ($z['price'] ?? 0) > 0)
+        $best[] = ['sym' => $z['sym'], 'sector' => $z['sector'], 'price' => $z['price'], 'divYield' => $z['divYield'], 'q' => $z['q']['summe'], 'pfp' => $z['pfp']];
+    if (!$best) return;
+    $spy = bb_yahoo_kurs('SPY'); if ($spy === null) return;   // ohne Massstab nicht speichern, naechste Nacht neu
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    @file_put_contents($f, json_encode(['stand' => date('c'), 'spy' => $spy, 'anzahl' => count($best), 'best' => $best], JSON_UNESCAPED_UNICODE), LOCK_EX);
+}
+// Auswertung eines gespeicherten Monats: gleich gewichtete Kursentwicklung der damaligen Best Bets gegen SPY (Kurse aus dem aktuellen Big Board)
+function bb_verlauf_auswertung(string $monat, ?array $jetzt = null): ?array {
+    $v = json_decode((string) @file_get_contents(bb_verlauf_ordner() . '/' . $monat . '.json'), true); if (!is_array($v)) return null;
+    $jetzt = $jetzt ?? bb_laden(); $kurs = []; foreach ($jetzt['zeilen'] ?? [] as $z) $kurs[$z['sym']] = $z['price'] ?? null;
+    $r = []; foreach ($v['best'] as $b) if (($kurs[$b['sym']] ?? 0) > 0) $r[] = $kurs[$b['sym']] / $b['price'] - 1;
+    $spy = bb_yahoo_kurs('SPY');
+    return ['monat' => $monat, 'anzahl' => count($v['best']), 'mitKurs' => count($r), 'bestBets' => $r ? array_sum($r) / count($r) * 100 : null,
+        'spy' => ($spy && $v['spy']) ? ($spy / $v['spy'] - 1) * 100 : null];
 }
 function bb_laden(): array {
     $d = json_decode((string) @file_get_contents(bb_datei()), true);
@@ -243,5 +275,8 @@ function bb_bericht_text(array $d, int $jeSektor = 4): string {
         usort($l, fn($a, $b) => ($a['pfp'] ?? 9) <=> ($b['pfp'] ?? 9));
         $t .= "\n<b>" . htmlspecialchars($sek) . '</b> (' . count($l) . "): " . implode(', ', array_map(fn($z) => $z['sym'] . ' ' . number_format((float) $z['divYield'], 1, ',', '') . ' % · Q' . $z['q']['summe'] . ' · ' . number_format((float) $z['pfp'], 2, ',', ''), array_slice($l, 0, $jeSektor)));
     }
+    $vj = bb_verlauf_auswertung(date('Y-m', strtotime('first day of -12 months')), $d);   // Abrechnung nach 12 Monaten
+    if ($vj && $vj['bestBets'] !== null && $vj['spy'] !== null)
+        $t .= "\n\n📊 Best Bets von " . $vj['monat'] . ' (' . $vj['mitKurs'] . ' Titel): ' . number_format($vj['bestBets'], 1, ',', '') . ' % gegen S&P 500 (SPY) ' . number_format($vj['spy'], 1, ',', '') . ' % (Kurs, ohne Dividenden).';
     return $t . "\n\nZahl hinter Q = Kurs ÷ fairer Preis. Regelausgabe, keine Anlageberatung.";
 }

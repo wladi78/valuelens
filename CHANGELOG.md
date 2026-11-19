@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.36 – 19.11.2026
+- Big Board: Best Bets werden einmal im Monat mit Kurs gespeichert; nach 12 Monaten zeigt der Monatsbericht, ob sie den S&P 500 geschlagen haben.
+
 ## 1.35 – 18.11.2026
 - Big Board: fehlende Bewertungen rechnet der Server jetzt nach, bis alle Best Bets da sind (vorher höchstens 60).
 - Auch ausländische Dividendenwerte (z. B. Sanofi, Novartis, Nestlé, TD, Royal Bank) – Erhöhungen in Landeswährung gezählt, ab 5 Jahren (🌍).
