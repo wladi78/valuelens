@@ -25,12 +25,17 @@ const BB_MASS = [   // Sektor => [ROE, Kapitalrendite (ROTC), Nettomarge] in %
 function bb_datei() { return __DIR__ . '/data/cache/bigboard.json'; }
 function bb_note($r) { return $r === null ? null : ($r >= 1.5 ? 5 : ($r >= 1.1 ? 4 : ($r >= 0.8 ? 3 : ($r >= 0.5 ? 2 : 0)))); }
 
-function bb_qualitaet(array $s): array {
+function bb_qualitaet(array $s, ?array $marge = null): array {
     $sek = $s['sector'] ?? ''; $m = BB_MASS[$sek] ?? [15, 10, 10];
     $fin = $sek === 'Financial Services'; $reit = $sek === 'Real Estate'; $ver = $sek === 'Utilities';
     $roe = $s['roe'] ?? null; $roeOk = $roe !== null && $roe > 0 && $roe < 100;   // negatives/riesiges EK verzerrt (CLX 534 %)
+    // op. Marge und FCF-Marge (SEC, fitness_kennzahlen) wie in seiner DVK-Note; Massstab aus der Nettomarge des Sektors
+    // (op. Marge ~ 1,5 x, FCF-Marge ~ 1 x). Banken/Versicherer ohne - Umsatz und Cashflow sagen dort wenig.
+    $opM = $fin ? null : ($marge['opM'] ?? null); $fcfM = $fin ? null : ($marge['fcfM'] ?? null);
     $noten = array_values(array_filter([$roeOk ? bb_note($roe / $m[0]) : null, (!$fin && ($s['rotc'] ?? null) !== null && $m[1]) ? bb_note($s['rotc'] / $m[1]) : null,
-        ($s['npm'] ?? null) !== null ? bb_note($s['npm'] / $m[2]) : null], fn($v) => $v !== null));
+        ($s['npm'] ?? null) !== null ? bb_note($s['npm'] / $m[2]) : null,
+        $opM !== null ? ($opM <= 0 ? 0 : bb_note($opM / ($m[2] * 1.5))) : null,
+        ($fcfM !== null && !$ver) ? ($fcfM <= 0 ? 0 : bb_note($fcfM / $m[2])) : null], fn($v) => $v !== null));   // Versorger: Investitionen machen FCF dauerhaft klein
     $prof = $noten ? (int) round(array_sum($noten) / count($noten)) : null;
     $finK = null;
     if ($fin) $finK = 3;
@@ -198,14 +203,15 @@ function bb_rechnen(int $budget = 1500): array {
     $offen = 0;
     foreach ($quellen as $s) {
         $sym = str_replace('.', '-', strtoupper((string) ($s['symbol'] ?? ''))); if ($sym === '') continue;
-        $q = bb_qualitaet($s); $k = bb_kraft($s);
+        $marge = isset($altZ[$sym]['marge']) ? $altZ[$sym]['marge'] : null;
+        $q = bb_qualitaet($s, $marge); $k = bb_kraft($s);
         $r1 = !bb_sonder($s) && ($s['divYield'] ?? 0) > 0 && ($s['avgYield5y'] ?? 0) > 0 ? $s['avgYield5y'] / $s['divYield'] : null;
         $z = ['sym' => $sym, 'name' => $s['name'] ?? $sym, 'sector' => $s['sector'] ?? '', 'industry' => $s['industry'] ?? '', 'category' => $s['category'] ?? '',
             'price' => $s['price'] ?? null, 'divYield' => $s['divYield'] ?? null, 'avgYield5y' => $s['avgYield5y'] ?? null, 'dgr1y' => $s['dgr1y'] ?? null,
             'dgr5y' => $s['dgr5y'] ?? null, 'dgr10y' => $s['dgr10y'] ?? null, 'etf' => $etfs[$sym] ?? null, 'q' => $q, 'k' => $k, 'r1' => $r1,
             'r2' => $altZ[$sym]['r2'] ?? null, 'r3' => $altZ[$sym]['r3'] ?? null, 'basis' => $altZ[$sym]['basis'] ?? null, 'rec' => $altZ[$sym]['rec'] ?? null,
-            'bewertet' => $altZ[$sym]['bewertet'] ?? null, 'adr' => $s['adr'] ?? null];
-        $kandidat = $q['summe'] >= 15 && !$q['aus'];
+            'bewertet' => $altZ[$sym]['bewertet'] ?? null, 'adr' => $s['adr'] ?? null, 'marge' => $marge];
+        $kandidat = $q['summe'] >= ($marge === null && empty($s['adr']) ? 13 : 15) && !$q['aus'];   // ohne Margen knapp darunter mitnehmen - sie koennen heben
         $frisch = $z['bewertet'] && strtotime($z['bewertet']) > time() - 20 * 3600;
         if ($kandidat && !$frisch && time() - $start < $budget) {
             try {
@@ -214,6 +220,8 @@ function bb_rechnen(int $budget = 1500): array {
                 $kurs = $b['kurs'] ?? ($s['price'] ?? null);
                 $dcf = bb_fmp_dcf($sym, $gesperrt); $z['r3'] = ($dcf > 0 && $kurs > 0 && $kurs / $dcf > 0.2 && $kurs / $dcf < 5) ? $kurs / $dcf : null;
                 $i = firmen_info($sym); $mw = $i['urteilWert'] ?? null; $z['rec'] = is_numeric($mw) ? round(6 - (float) $mw, 2) : null;
+                if (empty($s['adr'])) { $fk = fitness_kennzahlen($sym);   // SEC, gilt bis zur naechsten 10-K
+                    if (isset($fk['opMarge']) || isset($fk['fcfMarge5'])) { $z['marge'] = ['opM' => $fk['opMarge'] ?? null, 'fcfM' => $fk['fcfMarge5'] ?? null]; $z['q'] = bb_qualitaet($s, $z['marge']); } }
                 $z['bewertet'] = date('c'); $neuBewertet++;
             } catch (Throwable $e) {}
         } elseif ($kandidat && !$frisch) $offen++;

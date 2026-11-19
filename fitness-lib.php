@@ -342,6 +342,9 @@ function fitness_kennzahlen($symbol, $nurCache = false) {
     $f5 = 0; $d5 = 0; foreach (array_slice($j, -5) as $y) { if ($fcf($y) === null || ($y['divGezahlt'] ?? null) === null) continue; $f5 += $fcf($y); $d5 += $y['divGezahlt']; }
     $o['fcfDiv5'] = $d5 > 0 ? round($f5 / $d5, 2) : null;
     $o['marge'] = ($l['umsatz'] ?? 0) > 0 && ($l['gewinn'] ?? null) !== null ? round($l['gewinn'] / $l['umsatz'] * 100, 1) : null;
+    $o['opMarge'] = ($l['umsatz'] ?? 0) > 0 && ($l['betrieb'] ?? null) !== null ? round($l['betrieb'] / $l['umsatz'] * 100, 1) : null;
+    $fu = 0; $ff = 0; foreach (array_slice($j, -5) as $y) { if ($fcf($y) === null || ($y['umsatz'] ?? 0) <= 0) continue; $ff += $fcf($y); $fu += $y['umsatz']; }
+    $o['fcfMarge5'] = $fu > 0 ? round($ff / $fu * 100, 1) : null;   // Big Board: Van Knapps DVK-Profitabilitaet nutzt op. Marge und FCF-Marge
     $u5 = array_slice($j, -6); $a = $u5[0]['umsatz'] ?? null; $b = end($u5)['umsatz'] ?? null; $n = count($u5) - 1;
     $o['umsatzG'] = $a > 0 && $b > 0 && $n >= 3 ? round((pow($b / $a, 1 / $n) - 1) * 100, 1) : null;
     return $o;

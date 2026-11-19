@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.37 – 19.11.2026
+- Big Board: Profitabilität bewertet jetzt auch operative Marge und Free-Cashflow-Marge (aus den SEC-Berichten), wie im Original-Verfahren.
+
 ## 1.36 – 19.11.2026
 - Big Board: Best Bets werden einmal im Monat mit Kurs gespeichert; nach 12 Monaten zeigt der Monatsbericht, ob sie den S&P 500 geschlagen haben.
 
