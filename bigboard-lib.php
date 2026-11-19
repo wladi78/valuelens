@@ -219,7 +219,8 @@ function bb_rechnen(int $budget = 1500): array {
         if ($kandidat && !$frisch && time() - $start < $budget) {
             try {
                 $b = bewertung_zeile($sym, (string) ($s['sector'] ?? ''));
-                $z['r2'] = (isset($b['abwN']) && is_finite($b['abwN'])) ? 1 + $b['abwN'] / 100 : null; $z['basis'] = $b['basis'] ?? ($b['fehler'] ?? null);
+                $z['r2'] = (isset($b['abwN']) && is_finite($b['abwN'])) ? 1 + $b['abwN'] / 100 : null;
+                if ($z['r2'] !== null && ($z['r2'] < 0.2 || $z['r2'] > 5)) $z['r2'] = null;   // kaputte Gewinnreihe (19.11.2026: BMI Normal-KGV 0,04 -> r2 662) nicht mitteln $z['basis'] = $b['basis'] ?? ($b['fehler'] ?? null);
                 $kurs = $b['kurs'] ?? ($s['price'] ?? null);
                 $dcf = bb_fmp_dcf($sym, $gesperrt); $z['r3'] = ($dcf > 0 && $kurs > 0 && $kurs / $dcf > 0.2 && $kurs / $dcf < 5) ? $kurs / $dcf : null;
                 $i = firmen_info($sym); $mw = $i['urteilWert'] ?? null; $z['rec'] = is_numeric($mw) ? round(6 - (float) $mw, 2) : null;

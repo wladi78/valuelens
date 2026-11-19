@@ -534,9 +534,11 @@ function bbPfp(z){ const w = [z.r1, z.r2, z.r3].filter(v=>v!=null && isFinite(v)
 function bbFarbeBew(p){ return p==null ? null : p<0.9 ? 'gruen' : p<=1.1 ? 'gelb' : 'orange'; }
 function bbFarbeRec(r){ return r==null ? null : r<2.75 ? 'orange' : r>=3.75 ? 'gruen' : 'gelb'; }
 function bbBestBet(z){ const p = bbPfp(z); return z.q.summe>=15 && !z.q.aus && z.k.farbe && z.k.farbe!=='orange' && p!=null && bbFarbeBew(p)!=='orange' && (z.r2!=null || z.r3!=null) && bbFarbeRec(z.rec)!=='orange'; }
+const BB_VERSICHERER = ['PFG'];
 function bbAuswahl(z, w){
   if(w.startsWith('sek:')) return z.sector===w.slice(4);
-  return ({versicherung:/insurance/i.test(z.industry||''), banken:/bank/i.test(z.industry||''), kings:z.category==='King', kc:z.category==='King'||z.category==='Champion',
+  // Versicherer, die Yahoo unter einer anderen Branche fuehrt (Van Knapp zaehlt sie dazu; Nutzer 19.11.2026: PFG aufnehmen)
+  return ({versicherung:/insurance/i.test(z.industry||'') || BB_VERSICHERER.includes(z.sym), banken:/bank/i.test(z.industry||''), kings:z.category==='King', kc:z.category==='King'||z.category==='Champion',
     rendite25:z.divYield>=2.5, q22:z.q.summe>=22, alle:true})[w] ?? true;
 }
 async function bbLaden(){

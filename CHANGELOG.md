@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.39 – 19.11.2026
+- Big Board: Principal Financial (PFG) erscheint bei „Versicherungen“; unplausible Werte aus kaputten Gewinnreihen fließen nicht mehr in die Bewertung ein.
+
 ## 1.38 – 19.11.2026
 - Big Board: Roche und SAP sind jetzt dabei (Roche über die Inhaberaktie, bei SAP zählen Jubiläums-Sonderdividenden nicht als Erhöhung).
 
