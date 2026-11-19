@@ -209,6 +209,7 @@ function bb_rechnen(int $budget = 1500): array {
         $marge = isset($altZ[$sym]['marge']) ? $altZ[$sym]['marge'] : null;
         $q = bb_qualitaet($s, $marge); $k = bb_kraft($s);
         $r1 = !bb_sonder($s) && ($s['divYield'] ?? 0) > 0 && ($s['avgYield5y'] ?? 0) > 0 ? $s['avgYield5y'] / $s['divYield'] : null;
+        if ($r1 !== null && ($r1 < 0.3 || $r1 > 2.5)) $r1 = null;   // 5-J.-Schnitt mit Sonderdividenden bzw. Kuerzung (19.11.2026: RLI 4,4, DDS 26, GPRK 8,7)
         $z = ['sym' => $sym, 'name' => $s['name'] ?? $sym, 'sector' => $s['sector'] ?? '', 'industry' => $s['industry'] ?? '', 'category' => $s['category'] ?? '',
             'price' => $s['price'] ?? null, 'divYield' => $s['divYield'] ?? null, 'avgYield5y' => $s['avgYield5y'] ?? null, 'dgr1y' => $s['dgr1y'] ?? null,
             'dgr5y' => $s['dgr5y'] ?? null, 'dgr10y' => $s['dgr10y'] ?? null, 'etf' => $etfs[$sym] ?? null, 'q' => $q, 'k' => $k, 'r1' => $r1,

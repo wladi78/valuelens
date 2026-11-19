@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.41 – 19.11.2026
+- Big Board: Rendite-Vergleich mit dem 5-Jahres-Schnitt zählt nicht mehr, wenn Sonderdividenden oder eine Kürzung ihn verzerren.
+
 ## 1.40 – 19.11.2026
 - Bewertung: Firmen, die ihre Aktienzahl einige Jahre in Tausend gemeldet haben (z. B. Badger Meter), bekommen wieder richtige Gewinne je Aktie und ein richtiges Normal-KGV.
 
