@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.40 – 19.11.2026
+- Bewertung: Firmen, die ihre Aktienzahl einige Jahre in Tausend gemeldet haben (z. B. Badger Meter), bekommen wieder richtige Gewinne je Aktie und ein richtiges Normal-KGV.
+
 ## 1.39 – 19.11.2026
 - Big Board: Principal Financial (PFG) erscheint bei „Versicherungen“; unplausible Werte aus kaputten Gewinnreihen fließen nicht mehr in die Bewertung ein.
 

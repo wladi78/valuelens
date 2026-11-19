@@ -151,6 +151,20 @@ function bewertung_reihen($symbol, $neu = false) {
         // nur 2022-2025). Dann Gewinn / verwaesserter Gewinn je Aktie; Einreichdatum vom EPS-Wert, damit die Split-Bereinigung unten greift.
         if ($epsJ) {
             $gewinnJ = $hole('gewinn');
+            // Aktienzahl in Tausend gemeldet, und zwar mehrere Jahre am Stueck (19.11.2026: Badger Meter BMI 2018-2022 "29.000"
+            // statt 29 Mio. -> Gewinn je Aktie operativ 1.761 $, Normal-KGV 0,04). Der Median-Abgleich oben greift dann nicht.
+            // Gegenprobe je Jahr: Gewinn / gemeldeter Gewinn je Aktie = Aktienzahl. Weicht die gemeldete um > Faktor 300 ab,
+            // mit 1.000 bzw. 1.000.000 skalieren, wenn sie danach passt (0,5- bis 2-fach), sonst den Wert verwerfen.
+            foreach ($aktien as $d => $n) {
+                $e = $epsJ[$d] ?? null; $g = $gewinnJ[$d] ?? null;
+                if (!$n || $n <= 0 || !$e || abs($e) < 0.01 || !$g || $g / $e <= 0) continue;
+                $soll = $g / $e;
+                if ($n * 300 < $soll || $n > $soll * 300) {
+                    $neu = null;
+                    foreach ([1e3, 1e6, 1e-3, 1e-6] as $f) { $q = $n * $f / $soll; if ($q > 0.5 && $q < 2) { $neu = $n * $f; break; } }
+                    if ($neu) $aktien[$d] = $neu; else unset($aktien[$d]);
+                }
+            }
             foreach ($epsJ as $d => $e) {
                 if (isset($aktien[$d]) || abs($e) < 0.01 || empty($gewinnJ[$d]) || $gewinnJ[$d] / $e <= 0) continue;
                 $aktien[$d] = $gewinnJ[$d] / $e;
