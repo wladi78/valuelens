@@ -151,11 +151,13 @@ function bb_sektor_etfs(): array {
 const BB_ADR = ['SNY' => 'SAN.PA', 'NVS' => 'NOVN.SW', 'AZN' => 'AZN.L', 'GSK' => 'GSK.L', 'NVO' => 'NOVO-B.CO', 'UL' => 'ULVR.L', 'DEO' => 'DGE.L',
     'BTI' => 'BATS.L', 'TTE' => 'TTE.PA', 'SHEL' => 'SHEL.L', 'BP' => 'BP.L', 'BHP' => 'BHP.AX', 'RIO' => 'RIO.L', 'TD' => 'TD.TO', 'RY' => 'RY.TO',
     'BNS' => 'BNS.TO', 'BMO' => 'BMO.TO', 'CM' => 'CM.TO', 'SAP' => 'SAP.DE', 'NGG' => 'NG.L', 'BCE' => 'BCE.TO', 'TU' => 'T.TO', 'MFC' => 'MFC.TO',
-    'SLF' => 'SLF.TO', 'CNI' => 'CNR.TO', 'CP' => 'CP.TO', 'ASML' => 'ASML.AS', 'TSM' => '2330.TW', 'NSRGY' => 'NESN.SW', 'RHHBY' => 'ROG.SW'];
+    'SLF' => 'SLF.TO', 'CNI' => 'CNR.TO', 'CP' => 'CP.TO', 'ASML' => 'ASML.AS', 'TSM' => '2330.TW', 'NSRGY' => 'NESN.SW', 'RHHBY' => 'RO.SW'];   // Roche: Genussschein ROG.SW hat bei Yahoo keine Dividenden, Inhaberaktie RO.SW dieselbe
+// Sonderdividenden, die die Erhoehungsreihe sonst brechen (Heimatboerse, Zahljahr => Betrag). Nutzer 18.11.2026: SAP von Hand freigeben.
+const BB_ADR_SONDER = ['SAP.DE' => [2022 => 0.50, 2012 => 0.35]];   // 50 bzw. 40 Jahre SAP
 function bb_adr_stocks(int $budget, array $schonDa): array {
     $f = __DIR__ . '/data/cache/bb-adr.json';
     $alt = json_decode((string) @file_get_contents($f), true) ?: [];
-    if (!empty($alt['stocks']) && strtotime($alt['stand'] ?? '2000-01-01') > time() - 7 * 86400) return $alt['stocks'];
+    if (!empty($alt['stocks']) && ($alt['v'] ?? 1) >= 2 && strtotime($alt['stand'] ?? '2000-01-01') > time() - 7 * 86400) return $alt['stocks'];
     if ($budget <= 0) return $alt['stocks'] ?? [];
     $start = time(); $out = []; $fertig = true;
     foreach (BB_ADR as $adr => $heim) {
@@ -165,6 +167,7 @@ function bb_adr_stocks(int $budget, array $schonDa): array {
             $q = bewertung_ohlc($heim, 16); $i = firmen_info($adr);
             if (!$q || !empty($i['fehler'])) continue;
             $jahr = []; foreach ($q['dividenden'] as [$dt, $b]) { $y = (int) substr($dt, 0, 4); if ($y < (int) date('Y')) $jahr[$y] = ($jahr[$y] ?? 0) + $b; }
+            foreach (BB_ADR_SONDER[$heim] ?? [] as $y => $b) if (isset($jahr[$y])) $jahr[$y] -= $b;
             if (count($jahr) < 3) continue;
             ksort($jahr); $ys = array_keys($jahr); $last = end($ys);
             $folge = 0; $y = $last; while (isset($jahr[$y - 1]) && $jahr[$y] > $jahr[$y - 1] * 1.0001) { $folge++; $y--; }
@@ -181,7 +184,7 @@ function bb_adr_stocks(int $budget, array $schonDa): array {
                 'revenue1y' => isset($i['umsatzWachstum']) ? $i['umsatzWachstum'] * 100 : null, 'adr' => $heim, 'folge' => $folge];
         } catch (Throwable $e) {}
     }
-    if ($fertig) { if (!is_dir(dirname($f))) @mkdir(dirname($f), 0700, true); @file_put_contents($f, json_encode(['stand' => date('c'), 'stocks' => $out], JSON_UNESCAPED_UNICODE)); }
+    if ($fertig) { if (!is_dir(dirname($f))) @mkdir(dirname($f), 0700, true); @file_put_contents($f, json_encode(['stand' => date('c'), 'v' => 2, 'stocks' => $out], JSON_UNESCAPED_UNICODE)); }
     return $out;
 }
 

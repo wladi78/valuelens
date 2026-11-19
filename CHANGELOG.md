@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.38 – 19.11.2026
+- Big Board: Roche und SAP sind jetzt dabei (Roche über die Inhaberaktie, bei SAP zählen Jubiläums-Sonderdividenden nicht als Erhöhung).
+
 ## 1.37 – 19.11.2026
 - Big Board: Profitabilität bewertet jetzt auch operative Marge und Free-Cashflow-Marge (aus den SEC-Berichten), wie im Original-Verfahren.
 
