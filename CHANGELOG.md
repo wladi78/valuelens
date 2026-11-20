@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.46 – 20.11.2026
+- Prognose-Fächer wieder wie vor 1.45: Die Szenarien gibt es schon im Bereich „Prognose“ unter dem Chart (Schätzungen, Normal-KGV, LT-Wachstum, Hist. Wachstum, Eigene).
+
 ## 1.45 – 20.11.2026
 - Prognose-Fächer mit Szenarien: Korridor fest (7,5–21×) oder um das Normal-KGV (0,5–1,4×, aus 5 bis 15 Geschäftsjahren); Gewinnwachstum aus Analysten-Langfrist, eigener Historie (5/10 J.) oder eigener Eingabe; 6 Jahre.
 - Schätzung: Band aus höchster und niedrigster Analystenschätzung.

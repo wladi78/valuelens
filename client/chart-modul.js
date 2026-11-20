@@ -297,9 +297,6 @@ function kiChartModal(){
   o.addEventListener('change', e=>{
     if(e.target.closest('[data-ki-fvr]') && _kiChart){ const w = parseFloat(String(e.target.value).replace(',','.')); if(w>=3 && w<=60){ _kiFvr = w; chartZeichnen(_kiChart.ctx, _kiChart.interval || '1mo'); } return; }
     if(e.target.closest('[data-ki-sbc]') && _kiChart){ _kiSbcRaus = e.target.checked; chartZeichnen(_kiChart.ctx, _kiChart.interval || '1mo'); return; }
-    const sz = e.target.closest('[data-ki-sz]');
-    if(sz && _kiChart){ const k = sz.dataset.kiSz; _kiSzen[k] = k==='npeJ' ? +sz.value : sz.value; if(k==='g' && String(sz.value).trim()) _kiSzen.quelle = 'eigen';
-      try{ localStorage.setItem('kiSzen', JSON.stringify(_kiSzen)); }catch(e2){} chartZeichnen(_kiChart.ctx, _kiChart.interval || '1mo'); return; }
     const cb = e.target.closest('[data-ki-ebene]');
     if(cb && _kiChart){ _kiEbene[cb.dataset.kiEbene] = cb.checked; chartZeichnen(_kiChart.ctx, _kiChart.interval || '1mo'); }
   });
@@ -881,17 +878,6 @@ function kiGraphKeySetzen(key){
 // LWC haelt dabei aber den rechten Rand fest -> Zeitraum (z. B. Gewinn-Zeitraum ab 2010) nach dem Ziehen neu setzen.
 { let tr = null; window.addEventListener('resize', ()=>{ clearTimeout(tr); tr = setTimeout(()=>{ try{ if(_kiChart && _kiChart.chart) kiZeitraumAnwenden(); } catch(e){} }, 250); }); }
 let _kiRenditeSpaet = null;
-// Prognose-Szenarien (Nutzer 20.11.2026, nach Vorlage "Forecasting"): Korridor-Art, Jahre fuer das Normal-KGV, Wachstumsquelle
-let _kiSzen = {art:'fest', npeJ:10, quelle:'auto', g:''}; try{ Object.assign(_kiSzen, JSON.parse(localStorage.getItem('kiSzen') || '{}')); }catch(e){}
-function kiSzenLeiste(){
-  const s = _kiSzen, o = (v, n, akt)=>`<option value="${v}"${String(akt)===String(v) ? ' selected' : ''}>${n}</option>`;
-  return `<span style="display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center;padding:1px 6px;border:1px solid var(--border);border-radius:6px;" title="Prognose-Szenario: Korridor und Gewinnwachstum für 6 Jahre">
-    <select data-ki-sz="art" style="padding:1px 3px;">${o('fest','Fächer 7,5–21×',s.art)}${o('normal','Normal-KGV-Korridor',s.art)}</select>
-    <select data-ki-sz="npeJ" style="padding:1px 3px;" title="Geschäftsjahre für das Normal-KGV">${[5,7,10,15].map(n=>o(n, n+' GJ', s.npeJ)).join('')}</select>
-    <select data-ki-sz="quelle" style="padding:1px 3px;">${o('auto','Wachstum: Analysten, sonst bisher',s.quelle)}${o('analyst','Analysten langfristig',s.quelle)}${o('hist5','eigenes 5 J.',s.quelle)}${o('hist10','eigenes 10 J.',s.quelle)}${o('eigen','eigene Eingabe',s.quelle)}</select>
-    <input data-ki-sz="g" type="text" inputmode="decimal" placeholder="% p. a." value="${escapeHtml(String(s.g||''))}" style="width:52px;padding:1px 4px;" title="eigenes Gewinnwachstum in % p. a. (Enter)">
-    <span id="kiSzInfo" class="muted" style="font-size:11px;"></span></span>`;
-}
 let _kiKaufMarker = [], _kiKursOben = null, _kiKaufInfo = {};   // Kaufpunkte fuer die obere Kurslinie im Bewertungs-Reiter   // Div.-Rendite erst nach den Bewertungsflaechen zeichnen (liegt sonst dahinter)
 function kiBewOhneTitel(chart){
   if(chart._ohneTitel) return; chart._ohneTitel = true;
@@ -1709,7 +1695,7 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
   // 5 Prognosejahre mit je 1 Punkt schrumpften neben Monatskerzen auf 5 Monatsbreiten, die Faecherlinien standen senkrecht
   // am rechten Rand (Nutzer 07.11.2026, ADM: "es sieht Katastrophe aus").
   if(letzt && (E.faecher || E.prog) && zeiten && zeiten.length){
-    const ende = new Date(tag(letzt.date)); ende.setUTCFullYear(ende.getUTCFullYear() + (E.faecher ? 6 : 2)); ende.setUTCDate(ende.getUTCDate() + 45);
+    const ende = new Date(tag(letzt.date)); ende.setUTCFullYear(ende.getUTCFullYear() + (E.faecher ? 5 : 2)); ende.setUTCDate(ende.getUTCDate() + 45);
     const d = new Date(zeiten[zeiten.length-1] + 'T12:00:00Z'); const leer = [];
     for(let i=0; i<4000; i++){
       if(interval==='1mo') d.setUTCMonth(d.getUTCMonth()+1); else if(interval==='1wk') d.setUTCDate(d.getUTCDate()+7); else d.setUTCDate(d.getUTCDate()+1);
@@ -1796,46 +1782,13 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
         const hT = new Date().toISOString().slice(0,10); let fvH = null;
         for(let i=0;i<li.length-1;i++){ if(hT>=li[i][0] && hT<=li[i+1][0]){ const f = (new Date(hT)-new Date(li[i][0]))/Math.max(1,(new Date(li[i+1][0])-new Date(li[i][0]))); fvH = li[i][1] + (li[i+1][1]-li[i][1])*f; } }
         _kiChart.fvHeute = fvH; } if(document.getElementById('kiAlarmPanel')?.style.display===''){ kiAlarmPanelZeichnen(); } _kiChart.gewinnVon = pkt[0].t; if(E.prog && prog.length) _kiChart.bisZukunft = prog[prog.length-1].t; kiZeitraumAnwenden(); }
-    // Analystendaten (langfristiges Wachstum, Spanne Hoch/Tief je Geschaeftsjahr) fuer Szenarien und Schaetzungsband
-    let fiP = null;
-    if((E.faecher || E.prog) && letzt){ try{ fiP = await (await fetch('fitness.php?info=1&symbol=' + encodeURIComponent(String(_kiChart?.ctx?.sym||'')), {cache:'no-store'})).json(); }catch(e){} }
-    // Schaetzungsband (Vorlage "Estimate Range", Nutzer 20.11.2026): Fair Value bei hoechster und niedrigster Analystenschaetzung
-    if(E.prog && prog.length && fiP && Array.isArray(fiP.trend) && letzt && !fxHinweis && (basis==='operativ' || basis==='gaap')){
-      const sp = prog.map(p=>{ const tr = fiP.trend.find(x=>x.ende && Math.abs(tag(x.ende)-tag(p.t)) < 60*86400000); return tr && tr.hoch>0 && tr.tief>0 ? {t:p.t, h:tr.hoch, l:tr.tief} : null; }).filter(Boolean);
-      if(sp.length){ const a0 = {t:letzt.t, h:letzt.eps, l:letzt.eps};
-        [['h','Analysten hoch'],['l','Analysten tief']].forEach(([k,n])=>{ const s2 = chart.addLineSeries({color:'rgba(234,88,12,.55)', lineWidth:1, lineStyle:LS.SparseDotted, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, title:n});
-          s2.setData([a0, ...sp].map(x=>({time:x.t, value:x[k]*FVR}))); }); }
-    }
-    if(E.faecher && letzt && letzt.eps>0){
-      // Prognose-Szenarien nach Vorlage "Forecasting" (Nutzer 20.11.2026): Korridor fest 7,5-21x oder um das Normal-KGV
-      // (0,5 / 0,7 / 1 / 1,4 x, Normal-KGV aus 5-15 Geschaeftsjahren); Gewinn 6 Jahre: Analystenkonsens, danach Wachstum aus
-      // Analysten-Langfrist (Yahoo +5y), eigener Gewinnhistorie (5/10 J.) oder eigener Eingabe.
-      const SZ = _kiSzen;
-      const cagrJ = n=>{ const p2 = pkt.filter(x=>x.eps>0); if(p2.length<2) return NaN; const b = p2[p2.length-1];
-        const a = [...p2].reverse().find(x=>(tag(b.date)-tag(x.date))/31557600000 >= n-0.2) || p2[0]; const jj = (tag(b.date)-tag(a.date))/31557600000;
-        return jj>0.5 ? (Math.pow(b.eps/a.eps, 1/jj)-1)*100 : NaN; };
-      let ltg = fiP ? Number(fiP.ltg) : NaN; if(isFinite(ltg) && Math.abs(ltg) < 1) ltg *= 100;
-      const eigen = parseFloat(String(SZ.g||'').replace(',','.'));
-      const quelle = SZ.quelle || 'auto';
-      const gW = quelle==='hist5' ? cagrJ(5) : quelle==='hist10' ? cagrJ(10) : quelle==='eigen' ? eigen : ltg;
-      const gS = isFinite(gW) ? gW : g, gK = Math.max(-20, Math.min(40, isFinite(gS) ? gS : 0));
-      const mitKonsens = quelle==='auto' || quelle==='analyst';
-      const n6 = []; let eps = letzt.eps;
-      for(let k=0; k<=6; k++){ const d = new Date(tag(letzt.date)); d.setUTCFullYear(d.getUTCFullYear()+k);
-        if(k>0){ const ana = mitKonsens ? prog.find(p=>!p.fort && Math.abs(tag(p.t)-d.getTime()) < 120*86400000) : null; eps = ana ? ana.eps : eps*(1+gK/100); }
-        n6.push({t:k===0 ? letzt.t : d.toISOString().slice(0,10), eps}); }
-      const npeN = (()=>{ const v = pkt.filter(p=>p.eps>0 && schlussAm(p.t)).slice(-(SZ.npeJ||10)).map(p=>schlussAm(p.t)/p.eps).sort((a,b)=>a-b);
-        return v.length ? (v.length%2 ? v[(v.length-1)/2] : (v[v.length/2-1]+v[v.length/2])/2) : null; })();
-      const normal = SZ.art==='normal' && npeN > 0;
-      const faktoren = normal
-        ? [[npeN*0.5,'rgba(37,99,235,.55)',1],[npeN*0.7,'rgba(37,99,235,.75)',1],[npeN,'rgba(37,99,235,1)',2],[npeN*1.4,'rgba(37,99,235,.75)',1],[FVR,'rgba(234,88,12,.85)',1]]
-        : [[7.5,'rgba(37,99,235,.55)',1],[10.5,'rgba(37,99,235,.75)',1],[FVR,'rgba(234,88,12,.85)',1],[18,'rgba(37,99,235,.75)',1],[21,'rgba(37,99,235,.55)',1]];
-      faktoren.forEach(([f2,farbe,w])=>{ const ls = chart.addLineSeries({color:farbe, lineWidth:w, lineStyle:w>1 ? LS.Solid : LS.Dotted, priceLineVisible:false, lastValueVisible:true, title:kiNum(f2,1)+'×', crosshairMarkerVisible:false});
-        ls.setData(n6.map(p=>({time:p.t, value:p.eps*f2}))); });
-      if(_kiChart) _kiChart.bisZukunft = n6[6].t;
-      const qn = {auto: isFinite(ltg) ? 'Analysten langfristig' : 'bisheriges Wachstum', analyst:'Analysten langfristig', hist5:'eigenes 5 J.', hist10:'eigenes 10 J.', eigen:'eigene Eingabe'}[quelle];
-      const info = document.getElementById('kiSzInfo');
-      if(info) info.textContent = `${mitKonsens && prog.some(p=>!p.fort) ? 'Konsens, dann ' : ''}${kiNum(gK,1)} % p. a. (${isFinite(gW) ? qn : 'bisheriges Wachstum'})${normal ? ' · Normal-KGV ' + kiNum(npeN,1) + '× aus ' + (SZ.npeJ||10) + ' GJ' : ''}`;
+    if(E.faecher && letzt && letzt.eps>0 && isFinite(g)){
+      // Prognose-Faecher: Kurs bei KGV 7,5 / 10,5 / 15 / 18 / 21 fuer 5 Jahre mit dem eingestellten Wachstum
+      const jahre5 = [0,1,2,3,4,5].map(k=>{ const d = new Date(tag(letzt.date)); d.setUTCFullYear(d.getUTCFullYear()+k); return {t:k===0 ? letzt.t : d.toISOString().slice(0,10), eps:letzt.eps*Math.pow(1+g/100, k)}; });
+      const faktoren = [[7.5,'rgba(37,99,235,.55)'],[10.5,'rgba(37,99,235,.75)'],[15,'rgba(234,88,12,.85)'],[18,'rgba(37,99,235,.75)'],[21,'rgba(37,99,235,.55)']];
+      faktoren.forEach(([f2,farbe])=>{ const ls = chart.addLineSeries({color:farbe, lineWidth:1, lineStyle:LS.Dotted, priceLineVisible:false, lastValueVisible:true, title:kiNum(f2,1)+'×', crosshairMarkerVisible:false});
+        ls.setData(jahre5.map(p=>({time:p.t, value:p.eps*f2}))); });
+      if(_kiChart) _kiChart.bisZukunft = jahre5[5].t;
     }
     // Kurs obenauf (die Flaechen sind jetzt deckend nach Vorlage und wuerden ihn sonst verdecken)
     if(_kiTab==='bewertung'){ if(typeof _kiRenditeSpaet==='function'){ const f = _kiRenditeSpaet; _kiRenditeSpaet = null; f(); }
@@ -2092,8 +2045,7 @@ async function chartZeichnenIntern(ctx, interval){
   o.querySelectorAll('[data-ki-iv]').forEach(b=>b.classList.toggle('active', b.dataset.kiIv===interval));
   o.querySelectorAll('[data-ki-tab]').forEach(b=>b.classList.toggle('active', b.dataset.kiTab===_kiTab));
   document.getElementById('kiChartEbenen').innerHTML = KI_EBENEN.map(([k,n])=>`<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" data-ki-ebene="${k}" ${E[k]?'checked':''}>${n}</label>`).join('')
-    + (_kiTab==='bewertung' ? `<label style="display:inline-flex;align-items:center;gap:4px;" title="Faktor für die Linie „Eigenes KGV“">KGV <input data-ki-cvr type="text" inputmode="decimal" value="${kiNum(_kiCvr,1)}" style="width:46px;padding:1px 4px;"></label>` : '')
-    + (_kiTab==='bewertung' && E.faecher ? kiSzenLeiste() : '');
+    + (_kiTab==='bewertung' ? `<label style="display:inline-flex;align-items:center;gap:4px;" title="Faktor für die Linie „Eigenes KGV“">KGV <input data-ki-cvr type="text" inputmode="decimal" value="${kiNum(_kiCvr,1)}" style="width:46px;padding:1px 4px;"></label>` : '');
   document.getElementById('kiChartTitel').textContent = ctx.titel;
   const info = document.getElementById('kiChartInfo'), box = document.getElementById('kiChartBox');
   info.textContent = 'Lade Kerzen …';
