@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.43 – 20.11.2026
+- Chart: Das Infofeld erscheint links oberhalb der Maus und verdeckt die Linie nicht mehr. Rechtsklick in den Chart heftet es an – dann lässt es sich verschieben oder links ablegen.
+- Renditerechner: Die Kästen stehen oben links nebeneinander und lassen sich frei verschieben.
+
 ## 1.42 – 20.11.2026
 - Bewertung: Gewinnreihen werden sonntags im Nachtlauf auf falsche Einheiten (Aktienzahl in Tausend) geprüft und repariert; Tenaris und Genuine Parts sind korrigiert.
 - Big Board: Sonderdividenden werden auch am 5-Jahres-Renditeschnitt erkannt (z. B. RLI, Dillard's, W. R. Berkley).

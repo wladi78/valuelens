@@ -2389,7 +2389,41 @@ async function chartZeichnenIntern(ctx, interval){
   // Infofeld beim Ueberfahren: Datum, Kurs, Rendite zu dem Zeitpunkt, KGV und Abweichung zum Fair Value (sobald Gewinne geladen)
   const tip = document.createElement('div');
   tip.style.cssText = 'position:absolute;top:8px;left:8px;z-index:5;pointer-events:none;display:none;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:11.5px;box-shadow:0 4px 14px rgba(0,0,0,.15);';
+  // Infofeld und Renditekaesten verschiebbar (Nutzer 20.11.2026: "kann sie nicht verschieben ... grosses Fenster stoert beim Chart").
+  // Ohne Anheften folgt das Infofeld links neben der Maus (verdeckt die Linie nicht); Rechtsklick in den Chart heftet es an -
+  // dann Kopfzeile zum Ziehen, links andocken, loesen. Lage bleibt gespeichert.
+  const klemmen = (el, x, y)=>({x: Math.round(Math.min(Math.max(0, x), Math.max(0, box.clientWidth - el.offsetWidth))), y: Math.round(Math.min(Math.max(0, y), Math.max(0, box.clientHeight - el.offsetHeight)))});
+  const ziehbar = (el, griff, fertig)=>{ griff.addEventListener('pointerdown', ev=>{
+    if(ev.button!==0 || ev.target.closest('a,button,input')) return; ev.preventDefault(); ev.stopPropagation();
+    const sx = ev.clientX - el.offsetLeft, sy = ev.clientY - el.offsetTop;
+    const mv = e2=>{ const q = klemmen(el, e2.clientX - sx, e2.clientY - sy); el.style.left = q.x + 'px'; el.style.top = q.y + 'px'; };
+    const los = ()=>{ document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', los); if(fertig) fertig({x: el.offsetLeft, y: el.offsetTop}); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', los); }); };
+  const tipKopf = document.createElement('div'), tipInhalt = document.createElement('div');
+  tipKopf.style.cssText = 'display:none;justify-content:space-between;align-items:center;gap:10px;cursor:move;user-select:none;touch-action:none;margin:-6px -9px 5px;padding:3px 8px;border-bottom:1px solid var(--border);border-radius:8px 8px 0 0;background:var(--surface-hover,rgba(0,0,0,.04));font-size:11px;';
+  tipKopf.innerHTML = '<span class="muted">⠿ angeheftet – ziehen zum Verschieben</span><span style="white-space:nowrap;"><a href="#" data-tip="links" title="an den linken Rand legen" style="text-decoration:none;margin-right:8px;">⇤</a><a href="#" data-tip="los" title="lösen – folgt wieder der Maus (Rechtsklick heftet wieder an)" style="text-decoration:none;">✕</a></span>';
+  tip.append(tipKopf, tipInhalt);
   box.appendChild(tip);
+  let tipFest = null; try{ tipFest = JSON.parse(localStorage.getItem('kiTipFest') || 'null'); }catch(e){}
+  const tipFestSetzen = q=>{ tipFest = q; try{ q ? localStorage.setItem('kiTipFest', JSON.stringify(q)) : localStorage.removeItem('kiTipFest'); }catch(e){}
+    tipKopf.style.display = q ? 'flex' : 'none'; tip.style.pointerEvents = q ? 'auto' : 'none';
+    if(q){ const k2 = klemmen(tip, q.x, q.y); tip.style.left = k2.x + 'px'; tip.style.top = k2.y + 'px'; } };
+  const tipLage = pt=>{
+    if(tipFest){ const k2 = klemmen(tip, tipFest.x, tipFest.y); tip.style.left = k2.x + 'px'; tip.style.top = k2.y + 'px'; return; }
+    // wie das Vorbild: links oberhalb der Maus, 20 px Abstand; reicht der Platz nicht, rechts bzw. darunter
+    const w = tip.offsetWidth || 260, hh = tip.offsetHeight || 150, bw2 = box.clientWidth, bh = box.clientHeight, abst = 20;
+    let x = pt.x - w - abst; if(x < 4) x = pt.x + abst; if(x + w > bw2 - 4) x = Math.max(4, bw2 - w - 4);
+    let y = pt.y - hh - abst; if(y < 4) y = Math.min(pt.y + abst, Math.max(4, bh - hh - 4));
+    tip.style.left = x + 'px'; tip.style.top = y + 'px'; };
+  box.addEventListener('contextmenu', ev=>{
+    if(ev.target.closest('a,button,input,select')) return; ev.preventDefault();
+    if(tipFest && tip.contains(ev.target)){ tipFestSetzen(null); tip.style.display = 'none'; return; }
+    const r = box.getBoundingClientRect();
+    tipFestSetzen({x: ev.clientX - r.left - (tip.offsetWidth || 260) - 28, y: ev.clientY - r.top - 40}); if(tipInhalt.innerHTML) tip.style.display = 'block'; });
+  tipKopf.addEventListener('click', ev=>{ const a = ev.target.closest('[data-tip]'); if(!a) return; ev.preventDefault();
+    if(a.dataset.tip==='los'){ tipFestSetzen(null); tip.style.display = 'none'; } else tipFestSetzen({x: 4, y: 4}); });
+  ziehbar(tip, tipKopf, q=>tipFestSetzen(q));
+  if(tipFest) tipFestSetzen(tipFest);
   const kerzeAm = {}; j.kerzen.forEach(k=>kerzeAm[k[0]] = k);
   const tagMs = s2=>new Date(s2+'T12:00:00Z').getTime();
   const hPkte = document.createElement('div'); hPkte.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:4;'; box.appendChild(hPkte);
@@ -2397,7 +2431,7 @@ async function chartZeichnenIntern(ctx, interval){
     hPkte.innerHTML = werte.filter(([v])=>v>0).map(([v, f])=>{ const y = ser.priceToCoordinate(v); return (y==null || !isFinite(y)) ? ''
       : `<span style="position:absolute;left:${x-5}px;top:${y-5}px;width:10px;height:10px;border-radius:50%;background:${f};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35);"></span>`; }).join(''); };
   chart.subscribeCrosshairMove(par=>{
-    if(!par || !par.time || !par.point || !kerzeAm[par.time]){ tip.style.display = 'none'; hPkte.innerHTML = ''; return; }
+    if(!par || !par.time || !par.point || !kerzeAm[par.time]){ if(!tipFest) tip.style.display = 'none'; hPkte.innerHTML = ''; return; }
     const k = kerzeAm[par.time], c = k[4];
     const ende = interval==='1mo' ? tagMs(par.time)+30*86400000 : tagMs(par.time);
     const d12 = divs.reduce((s2,[d,b])=>{ const t = tagMs(d); return (t<=ende && t>ende-365*86400000) ? s2+Number(b) : s2; }, 0);
@@ -2419,26 +2453,30 @@ async function chartZeichnenIntern(ctx, interval){
       if(kauf) kauf.forEach(t=>{ h += `<div style="margin-top:5px;border-top:1px solid var(--border);padding-top:3px;"><b style="color:#db2777;">KAUF</b> ${escapeHtml(new Date(t.date+'T12:00:00Z').toLocaleDateString('de-DE'))}<br>
           Stück <b>${kiNum(t.shares, t.shares%1?4:0)}</b> · Preis <b>${(()=>{ const pk = kiKaufPreisKurs(t); return pk!=null ? kiNum(pk) + (t.preis==null && t.eur!=null ? ' (' + kiNum(t.eur) + ' €)' : '') : (t.eur!=null ? kiNum(t.eur)+' €' : '–'); })()}</b>${t.betrag ? ' · Gesamt <b>'+kiNum(t.betrag)+' €</b>' : ''}${(e>0 && t.preis!=null) ? ' · KGV '+kiNum(t.preis/e,2)+'×' : ''}</div>`; });
       hPunkte(par.point.x, e>0 ? [[e*fvr,'#ea580c'], [bw0.npe ? e*bw0.npe : 0,'#2563eb'], [kgvH ? e*kgvH : 0,'#111'], [d12*fvr,'#eab308'], [c,'#16a34a']] : [[c,'#16a34a']]);
-      tip.innerHTML = h; tip.style.display = 'block'; tip.style.minWidth = '250px';
-      const bx = box.clientWidth, x = par.point.x; tip.style.left = (x + 280 > bx ? Math.max(4, x - 270) : x + 16) + 'px'; tip.style.top = Math.max(4, par.point.y - 60) + 'px';
+      tipInhalt.innerHTML = h; tip.style.display = 'block'; tip.style.minWidth = '250px'; tipLage(par.point);
       return;
     }
-    hPkte.innerHTML = ''; tip.style.minWidth = ''; tip.style.left = '8px'; tip.style.top = '8px';
+    hPkte.innerHTML = ''; tip.style.minWidth = '';
     let z = `<b>${escapeHtml(par.time)}</b><br>Kurs ${kiNum(c)} (H ${kiNum(k[2])} / T ${kiNum(k[3])})`;
     if(d12>0) z += `<br>Div.-Rendite ${kiNum(d12/c*100,2)} %`;
     const bw = _kiChart && _kiChart.bew;
     if(bw){ const e = bw.epsAm(par.time); if(e>0){ z += `<br>KGV ${kiNum(c/e,1)} · Fair Value ${kiNum(e*15)} (${kiProzent((c/(e*15)-1)*100)})`; if(bw.npe) z += `<br>Wert bei Normal-KGV ${kiNum(e*bw.npe)}`; } }
-    tip.innerHTML = z; tip.style.display = 'block';
+    tipInhalt.innerHTML = z; tip.style.display = 'block';
+    if(tipFest) tipLage(par.point); else { tip.style.left = '8px'; tip.style.top = '8px'; }
   });
   // Renditerechner nach Vorlage (Nutzer 12.11.2026, AMGN-Bild): 1. Klick = Start (1.000 investiert), 2. Klick = Ziel
   // (Kurs, in der Zukunft Fair Value = Gewinn x Faktor), Dividenden dazwischen (Zukunft: letzte 12-Monats-Dividende je Jahr).
   { let rr = null; const boxen = [];
     const weg = ()=>{ boxen.splice(0).forEach(b=>b.remove()); rr = null; };
+    // Grundstellung oben links nebeneinander (Start, dann Ergebnis) wie im Vorbild - verdeckt nicht den Klickpunkt;
+    // zusaetzlich frei ziehbar (Nutzer 20.11.2026)
     const kasten = (x, y, html)=>{ const d = document.createElement('div');
-      d.style.cssText = `position:absolute;z-index:6;left:${Math.min(Math.max(4, x+10), box.clientWidth-230)}px;top:${Math.max(4, y-20)}px;width:220px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:11.5px;box-shadow:0 4px 14px rgba(0,0,0,.15);`;
+      const links = boxen.length ? boxen[boxen.length-1].offsetLeft + boxen[boxen.length-1].offsetWidth + 8 : 4;
+      d.style.cssText = `position:absolute;z-index:6;left:${Math.min(links, Math.max(4, box.clientWidth-230))}px;top:4px;width:220px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:11.5px;box-shadow:0 4px 14px rgba(0,0,0,.15);cursor:move;user-select:none;touch-action:none;`;
+      d.title = 'ziehen zum Verschieben';
       d.innerHTML = `<a href="#" style="position:absolute;right:6px;top:2px;text-decoration:none;" title="schließen">×</a>` + html;
       d.querySelector('a').addEventListener('click', ev=>{ ev.preventDefault(); weg(); });
-      box.appendChild(d); boxen.push(d); };
+      box.appendChild(d); boxen.push(d); ziehbar(d, d); };
     const zeile = (t, v, f)=>`<div style="display:flex;justify-content:space-between;"><span class="muted">${t}</span><b${f?` style="color:${f}"`:''}>${v}</b></div>`;
     const pz = v=>`${v>=0?'+':''}${kiNum(v,2)} %`, farbe = v=>v>=0?'#16a34a':'#dc2626';
     const tagD = t=>new Date(t+'T12:00:00Z').toLocaleDateString('de-DE');
