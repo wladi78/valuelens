@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.49 – 20.11.2026
+- Reiter Analyse aufgeräumt: standardmäßig nur offene Monats-Pivots (Beschriftung rechts an der Preisachse) und neu Fibonacci-Stufen aus Monatskerzen (23,6 bis 78,6 %, Ziele 127,2 / 161,8 %). Alle anderen Ebenen bleiben zuschaltbar.
+
 ## 1.48 – 20.11.2026
 - Dividenden-Tabelle: Für das laufende Jahr wird kein Wachstum mehr angezeigt (noch nicht alle Zahlungen).
 

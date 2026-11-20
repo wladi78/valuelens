@@ -52,7 +52,7 @@ const KI_EBENEN = [
   ['kz',     'KI-Kaufzonen'], ['sb', 'KI Strong Buy'], ['fv', 'KI Fair Value'], ['sr', 'Support/Widerstand'], ['ob', 'Order Blocks'],
   ['kauf',   'Käufe + Einstand'], ['fvl', 'Fair Value KGV 15'], ['npe', 'Normal-KGV'], ['divfl', 'Dividendenfläche'], ['cvr', 'Eigenes KGV'], ['por', 'Ausschüttungsquote %'], ['split', 'Splits'], ['divdekl', 'Dividendenmarken'],
   ['prog',   'Schätzung'], ['faecher', 'Prognose-Fächer'], ['rendite', 'Div.-Rendite %'], ['divwert', 'Dividenden-Bewertung'], ['div3', '3 %-Linie'], ['divhist', 'Dividendenbalken'], ['rez', 'Rezessionen'],
-  ['struktur', 'Struktur HH/HL'], ['pd', 'Premium/Discount'], ['tiefs', 'Monatstiefs'], ['pivots', 'Pivots'], ['mpiv', 'Offene Monats-Pivots'], ['elder', 'Elder Impulse'], ['osz', 'Oszillatoren'],
+  ['struktur', 'Struktur HH/HL'], ['pd', 'Premium/Discount'], ['tiefs', 'Monatstiefs'], ['pivots', 'Pivots'], ['mpiv', 'Offene Monats-Pivots'], ['fib', 'Fibonacci (Monat)'], ['elder', 'Elder Impulse'], ['osz', 'Oszillatoren'],
 ];
 // 12-Monats-Dividende bis 'ende' (ms): Summe der letzten f Zahlungen, f = Zahlungen je Jahr aus den 3 Jahren davor.
 // Das starre 365-Tage-Fenster verlor am Rand eine Zahlung (KO 20.11.2026: Ex-Tag Ende November knapp ausserhalb -> Rendite
@@ -70,7 +70,7 @@ const KI_TABS = {
   bewertung: {name:'Bewertung', an:['fvl','npe','divfl','prog','rez','kauf','rendite','fv','sb','split']},   // Faecher aus nach Vorlage (Uebersicht)
   fitness: {name:'Fitness', an:[]},   // Finanzielle Fitness + Finanzzahlen ohne Kurschart nach Vorlage "Fiscal fitness")
   div:   {name:'Dividende', an:['divwert','divhist','rendite','kauf']},   // Umbau 20.11.2026: Bewertung nach Dividendenrendite statt Doppel zum Bewertungs-Reiter
-  analyse: {name:'Analyse', an:['ob','struktur','pd','tiefs','pivots','mpiv','osz','kauf']},
+  analyse: {name:'Analyse', an:['mpiv','fib','kauf']},   // Nutzer 20.11.2026: nur offene Pivots + Fibonacci, Rest zuschaltbar
 };
 // Wendepunkte: Hoch/Tief, das n Kerzen links und rechts uebertrifft. Beschriftung gegenueber dem vorigen gleichen Typ:
 // HH/LH (hoeheres/tieferes Hoch), HL/LL (hoeheres/tieferes Tief).
@@ -2125,15 +2125,15 @@ async function chartZeichnenIntern(ctx, interval){
   // Linie ab "von" bis heute, Beschriftung im Chart am Linienanfang statt an der Preisachse (Nutzer 17.11.2026: "ziemlich alles
   // ueberlappt - kleine Linien wie bei TradingView"). Die Anfaenge liegen in verschiedenen Monaten, die Texte also nebeneinander.
   const _segTexte = [];   // schon beschriftete Preise (Ausduennen, 17.11.2026)
-  const segLinie = (von, preis, farbe, text)=>{
+  const segLinie = (von, preis, farbe, text, rechts, breite)=>{
     if(preis==null || !isFinite(Number(preis))) return;
     const ende = zeiten[zeiten.length-1];
     const start = zeiten.find(z=>z >= von) || ende;
     if(start >= ende){ serie.createPriceLine({price:Number(preis), color:farbe, lineWidth:1, lineStyle:LS.Dashed, axisLabelVisible:false, title:text}); linien.push([farbe, text, Number(preis)]); return; }
-    const s = chart.addLineSeries({color:farbe, lineWidth:1, lineStyle:LS.Dashed, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false});
+    const s = chart.addLineSeries({color:farbe, lineWidth:breite||1, lineStyle:LS.Dashed, priceLineVisible:false, lastValueVisible:!!rechts, title: rechts ? text : '', crosshairMarkerVisible:false});
     s.setData([{time:start, value:Number(preis)}, {time:ende, value:Number(preis)}]);
     const nah = _segTexte.some(x=>Math.abs(x/Number(preis)-1) < 0.015);
-    s.setMarkers([{time:start, position:'aboveBar', color:farbe, shape:'circle', size:0.3, text: nah ? '' : text}]);
+    s.setMarkers([{time:start, position:'aboveBar', color:farbe, shape:'circle', size:0.3, text: (nah || rechts) ? '' : text}]);
     if(!nah) _segTexte.push(Number(preis));
     linien.push([farbe, text, Number(preis)]);
   };
@@ -2271,11 +2271,31 @@ async function chartZeichnenIntern(ctx, interval){
         else if(maxH[i] < pv && pv > kursM) oben.push({i, pv});
       }
       const ende = zeiten[zeiten.length-1];
-      const zeichne = (o, farbe)=>segLinie(mk[o.i][0], o.pv, farbe, 'P ' + mk[o.i][0].slice(5,7) + '/' + mk[o.i][0].slice(2,4) + ' · ' + kiNum(o.pv));
+      const zeichne = (o, farbe)=>segLinie(mk[o.i][0], o.pv, farbe, 'P ' + mk[o.i][0].slice(5,7) + '/' + mk[o.i][0].slice(2,4), true);   // Text rechts an der Achse
       unten.sort((a,b)=>b.pv-a.pv).slice(0,5).forEach(o=>zeichne(o, '#dc2626'));
       oben.sort((a,b)=>a.pv-b.pv).slice(0,5).forEach(o=>zeichne(o, '#16a34a'));
       anaLeg.push(`<span><span style="display:inline-block;width:14px;border-top:2px dashed #dc2626;vertical-align:middle;margin-right:4px;"></span>Offene Monats-Pivots unter dem Kurs: ${unten.length}${unten.length>5?' (5 nächste gezeigt)':''}</span>`,
         `<span><span style="display:inline-block;width:14px;border-top:2px dashed #16a34a;vertical-align:middle;margin-right:4px;"></span>darüber: ${oben.length}${oben.length>5?' (5 nächste gezeigt)':''}</span>`);
+    }
+  }
+  // Fibonacci (Nutzer 20.11.2026: "wie grosse Trader, auf dem Monatschart"): groesste Bewegung der letzten 60 Monatskerzen
+  // (hoechstes Hoch / tiefstes Tief). Aufwaerts: Ruecksetzer vom Hoch 23,6 / 38,2 / 50 / 61,8 / 78,6 %, Ziele 127,2 / 161,8 % der
+  // Bewegung ueber dem Tief; abwaerts spiegelbildlich. 50 und 61,8 % ("goldene Zone") kraeftiger. Beschriftung rechts an der Achse.
+  if(E.fib){
+    let mf = interval==='1mo' ? j.kerzen : null;
+    if(!mf){ try{ const mj = await (await fetch('quote.php?ohlc=1&interval=1mo&range=max&symbols=' + encodeURIComponent(ctx.sym), {cache:'no-store'})).json(); mf = Array.isArray(mj.kerzen) ? mj.kerzen : []; } catch(e){ mf = []; } }
+    if(!(_kiChart && _kiChart.chart && _kiChart.chart!==chart) && mf.length > 12){
+      const teil = mf.slice(-60); let iH = 0, iL = 0;
+      teil.forEach((k,i)=>{ if(k[2] > teil[iH][2]) iH = i; if(k[3] < teil[iL][3]) iL = i; });
+      const H = teil[iH][2], L = teil[iL][3], auf = iL < iH, d = H - L;
+      if(d > 0){
+        const von = teil[Math.min(iH, iL)][0];
+        [[0.236,'23,6'],[0.382,'38,2'],[0.5,'50'],[0.618,'61,8'],[0.786,'78,6']].forEach(([r,n])=>{
+          const preis = auf ? H - d*r : L + d*r, gold = r===0.5 || r===0.618;
+          segLinie(von, preis, gold ? '#ea580c' : '#64748b', 'Fib ' + n + ' %', true, gold ? 2 : 1); });
+        [[1.272,'127,2'],[1.618,'161,8']].forEach(([r,n])=>{ const preis = auf ? L + d*r : H - d*r; if(preis > 0) segLinie(von, preis, '#7c3aed', 'Fib ' + n + ' %', true); });
+        anaLeg.push(`<span><span style="display:inline-block;width:14px;border-top:2px dashed #ea580c;vertical-align:middle;margin-right:4px;"></span>Fibonacci (Monat): ${auf ? 'Aufwärts' : 'Abwärts'}bewegung ${escapeHtml(teil[auf?iL:iH][0].slice(0,7))} ${kiNum(auf?L:H)} → ${escapeHtml(teil[auf?iH:iL][0].slice(0,7))} ${kiNum(auf?H:L)} · orange = goldene Zone 50–61,8 %, lila = Ziele 127,2 / 161,8 %</span>`);
+      }
     }
   }
   // Oszillatoren in eigenen, zeitgleich mitlaufenden Feldern unter dem Chart: MACD (12/26/9) und Williams %R (14)
