@@ -533,7 +533,7 @@ function bewertung_zeile($sym, $sektor = '', $fvr = 15.0) {
     $wert = end($r)['v']; $z['wert'] = $wert;
     // Gewinneinbruch im letzten Jahr (GPC 2025: 2,73 nach 8,45-10,35) - meist Sonderlasten; Bewertung dann unsicher
     $vor = array_map(fn($e) => $e['v'], array_slice($r, -4, 3)); $mv = count($vor) >= 2 ? br_median($vor) : null;
-    if ($mv > 0 && $wert < 0.5 * $mv) $z['einbruch'] = round(($wert / $mv - 1) * 100);
+    if ($mv > 0 && $wert < 0.6 * $mv) $z['einbruch'] = round(($wert / $mv - 1) * 100);   // ab -40 % (Nutzer 20.11.2026, HSY Kakao 2025: -44 %)
     $schluss = function ($d) use ($k) { $m = substr($d, 0, 7); $w = null; foreach ($k as $x) { if (substr($x[0], 0, 7) <= $m) $w = $x[1]; else break; } return $w; };
     $vielf = [];
     foreach (array_slice($r, -10) as $e) { $s = $schluss($e['date']); if ($e['v'] > 0 && $s) $vielf[] = $s / $e['v']; }
@@ -547,5 +547,22 @@ function bewertung_zeile($sym, $sektor = '', $fvr = 15.0) {
         if ($npe) { $z['normWert'] = $wert * $npe; $z['abwN'] = ($kurs / $z['normWert'] - 1) * 100; }
         if ($npe && $g !== null) $z['ror'] = (pow($wert * pow(1 + max(-20, min(30, $g)) / 100, 5) * $npe / $kurs, 1 / 5) - 1) * 100 + $z['divR'];
     }
+    // Bei Gewinneinbruch zusaetzlich mit dem Vorwaerts-Gewinn (Analystenkonsens der naechsten 12 Monate) bewerten - vorueber-
+    // gehende Einbrueche (HSY 2025: Kakaopreise) machen die Bewertung mit dem letzten Jahr sonst zu teuer. Nutzer 20.11.2026.
+    if (isset($z['einbruch']) && !$fxAm && in_array($basis, ['operativ', 'gaap'], true)) {
+        $vw = br_vorwaerts_eps($rh['schaetzung'] ?? []);
+        if ($vw > 0) {
+            $z['wertVorw'] = round($vw, 4); $z['fvVorw'] = $vw * $fvr; $z['abwVorw'] = ($kurs / $z['fvVorw'] - 1) * 100;
+            if ($npe) { $z['normWertVorw'] = $vw * $npe; $z['abwNVorw'] = ($kurs / $z['normWertVorw'] - 1) * 100; }
+        }
+    }
     return $z;
+}
+// Gewinn der naechsten 12 Monate aus dem Konsens (laufendes und naechstes Geschaeftsjahr, zeitanteilig gemischt)
+function br_vorwaerts_eps(array $sz): ?float {
+    $sz = array_values(array_filter($sz, fn($x) => ($x['eps'] ?? 0) > 0 && !empty($x['ende']) && strtotime($x['ende']) > time()));
+    if (!$sz) return null;
+    usort($sz, fn($a, $b) => strcmp($a['ende'], $b['ende']));
+    $anteil = max(0, min(1, (strtotime($sz[0]['ende']) - time()) / 31557600));
+    return $sz[0]['eps'] * $anteil + ($sz[1]['eps'] ?? $sz[0]['eps']) * (1 - $anteil);
 }

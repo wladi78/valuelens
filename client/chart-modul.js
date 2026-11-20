@@ -461,7 +461,7 @@ async function acBewertungZeile(sym, name, sektor){
   const wert = r[r.length-1].v * pence; z.wert = wert;
   // Gewinneinbruch im letzten Jahr (GPC 2025: 2,73 nach 8,45-10,35) - meist Sonderlasten, Bewertung dann unsicher
   const vor = r.slice(-4,-1).map(e=>e.v*pence).sort((a,b)=>a-b); const mv = vor.length>=2 ? (vor.length%2 ? vor[(vor.length-1)/2] : (vor[vor.length/2-1]+vor[vor.length/2])/2) : null;
-  if(mv>0 && wert < 0.5*mv) z.einbruch = Math.round((wert/mv-1)*100);
+  if(mv>0 && wert < 0.6*mv) z.einbruch = Math.round((wert/mv-1)*100);   // ab -40 % wie der Server (20.11.2026)
   const schluss = d=>{ const m = String(d).slice(0,7); const x = k.filter(y=>y[0].slice(0,7)<=m).pop(); return x ? x[4] : null; };
   const vielf = r.slice(-10).filter(e=>e.v>0 && schluss(e.date)).map(e=>schluss(e.date)/(e.v*pence)).sort((a,b)=>a-b);
   const npe = vielf.length ? (vielf.length%2 ? vielf[(vielf.length-1)/2] : (vielf[vielf.length/2-1]+vielf[vielf.length/2])/2) : null;
@@ -507,7 +507,7 @@ function acListeZeichnen(){
   const pr = v=> v==null ? '–' : `<span class="${v<-10?'pos':(v>10?'neg':'')}">${v>0?'+':''}${kiNum(v,0)} %</span>`;
   tab.innerHTML = `<thead><tr>${spalten.map(([s2,t])=>`<th data-ac-sort="${s2}" style="cursor:pointer;white-space:nowrap;">${t}${_acSort.k===s2?(auf?' ▲':' ▼'):''}</th>`).join('')}</tr></thead><tbody>${l.map(z=>`<tr data-ac-sym="${escapeHtml(z.sym)}" style="cursor:pointer;">
     <td><b>${escapeHtml(z.sym)}</b></td><td>${escapeHtml((z.name||'').slice(0,28))}</td><td style="white-space:nowrap;">${z.kat ? escapeHtml(KI_DDB_ZEICHEN[z.kat]||z.kat) : '–'}</td>
-    ${z.fehler ? `<td colspan="16" class="muted">${escapeHtml(z.fehler)}</td>` : `<td>${escapeHtml(z.basis||'')}${z.einbruch!=null?` <span title="Letzter Wert ${z.einbruch} % unter dem Median der 3 Vorjahre – meist Sonderlasten. Bewertung unsicher, im Chart prüfen." style="color:#d97706;cursor:help;">⚠ ${z.einbruch} %</span>`:''}${z.fx?` <span class="muted" title="aus ${escapeHtml(z.fx)} umgerechnet">(${escapeHtml(z.fx)})</span>`:''}</td><td>${kiNum(z.kurs)}</td><td>${z.bank ? `<span title="Kurs-Buchwert-Verhältnis (Bank)">KBV ${kiNum(z.kbv,2)}</span>` : (z.kgv!=null?kiNum(z.kgv,1):'–')}</td><td>${z.fv!=null?kiNum(z.fv):'–'}</td><td>${pr(z.abw)}</td>
+    ${z.fehler ? `<td colspan="16" class="muted">${escapeHtml(z.fehler)}</td>` : `<td>${escapeHtml(z.basis||'')}${z.einbruch!=null?` <span title="Letzter Wert ${z.einbruch} % unter dem Median der 3 Vorjahre – meist Sonderlasten. Bewertung unsicher, im Chart prüfen.${z.abwNVorw!=null ? ' Mit Vorwärts-Gewinn (Konsens 12 Monate) ' + kiNum(z.wertVorw,2) + ': Kurs vs. Normal ' + kiNum(z.abwNVorw,0) + ' %, vs. Fair Value ' + kiNum(z.abwVorw,0) + ' %.' : ''}" style="color:#d97706;cursor:help;">⚠ ${z.einbruch} %</span>`:''}${z.fx?` <span class="muted" title="aus ${escapeHtml(z.fx)} umgerechnet">(${escapeHtml(z.fx)})</span>`:''}</td><td>${kiNum(z.kurs)}</td><td>${z.bank ? `<span title="Kurs-Buchwert-Verhältnis (Bank)">KBV ${kiNum(z.kbv,2)}</span>` : (z.kgv!=null?kiNum(z.kgv,1):'–')}</td><td>${z.fv!=null?kiNum(z.fv):'–'}</td><td>${pr(z.abw)}</td>
     <td>${z.bank ? `<span title="${escapeHtml(acBankTitel(z.bank))}" style="cursor:help;">KBV ${z.npe!=null?kiNum(z.npe,2):'–'}</span>` : (z.npe!=null?kiNum(z.npe,1):'–')}</td><td>${z.normWert!=null?kiNum(z.normWert):'–'}</td><td>${pr(z.abwN)}</td><td>${z.g!=null&&isFinite(z.g)?kiNum(z.g,1)+' %':'–'}</td>
     <td class="${z.ror==null?'':(z.ror>=10?'pos':(z.ror<0?'neg':''))}">${z.ror!=null?kiNum(z.ror,1)+' %':'–'}</td><td>${z.divR?kiNum(z.divR,2)+' %':'–'}</td><td${z.folgeSA?' title="Jahre in Folge erhöht, stockanalysis.com"':''}>${z.folge||0}</td><td class="${z.roe==null?'':(z.roe>=15?'pos':(z.roe<5?'neg':''))}" title="Gewinn ÷ Ø Eigenkapital (4 Quartale)">${z.roe!=null?kiNum(z.roe,1)+' %':'–'}</td><td class="${z.ldk==null?'':(z.ldk<=50?'pos':(z.ldk>80?'neg':''))}" title="Langfr. Schulden ÷ (Schulden + Eigenkapital), letztes Quartal">${z.ldk!=null?kiNum(z.ldk,0)+' %':'–'}</td><td class="${z.fcfDiv5==null?'':(z.fcfDiv5>=1.2?'pos':(z.fcfDiv5<1?'neg':''))}" title="Free Cashflow ÷ gezahlte Dividenden, Summe 5 Jahre (≥ 1 = gedeckt)">${z.fcfDiv5!=null?kiNum(z.fcfDiv5,2)+'×':'–'}</td><td class="${z.kaufPct==null?'':(z.kaufPct>=60?'pos':(z.kaufPct<30?'neg':''))}" title="Anteil Kaufempfehlungen (stark kaufen + kaufen) der Analysten, Yahoo">${z.kaufPct!=null?kiNum(z.kaufPct,0)+' % <span class="muted">('+z.kaufN+')</span>':'–'}</td>`}</tr>`).join('')}</tbody>`;
 }
@@ -1974,7 +1974,17 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
     + kachel('Div.-Rendite', divT>0 ? kiNum(divT/kurs*100,2)+' %' : '–', f.payoutRatioPct!=null ? 'Ausschüttung '+kiNum(f.payoutRatioPct,0)+' %' : '')
     + kachel(`Fair Value (${kiNum(FVR,FVR%1?1:0)} × ${BN.kurz})`, fv!=null ? kiNum(fv) : '–', abw!=null ? (abw>=0 ? kiNum(abw,0)+' % überbewertet' : kiNum(-abw,0)+' % unterbewertet') : '', abw==null ? '' : (abw>10 ? '#dc2626' : (abw<-10 ? '#16a34a' : '')))
     + kachel('Erw. Rendite p. a.', ror!=null ? kiNum(ror,1)+' %' : '–', '5 Jahre, Normal-KGV')
-    + kachel(`Wachstum ${BN.kurz}`, isFinite(g) ? kiNum(g,1)+' %' : '–', 'pro Jahr');
+    + kachel(`Wachstum ${BN.kurz}`, isFinite(g) ? kiNum(g,1)+' %' : '–', 'pro Jahr')
+    + (()=>{   // Gewinneinbruch (letzter Wert > 40 % unter dem Median der 3 Vorjahre): zusaetzlich mit Vorwaerts-Gewinn (Nutzer 20.11.2026, HSY)
+      const vor = pkt.slice(-4,-1).map(p=>p.eps).filter(v=>v>0).sort((a,b)=>a-b); if(vor.length<2 || !(epsT>0)) return '';
+      const med = vor.length%2 ? vor[(vor.length-1)/2] : (vor[vor.length/2-1]+vor[vor.length/2])/2;
+      if(!(epsT < 0.6*med) || !(basis==='operativ' || basis==='gaap')) return '';
+      const sz = (rh && Array.isArray(rh.schaetzung) ? rh.schaetzung : []).filter(x=>x.eps>0 && x.ende && new Date(x.ende+'T12:00:00Z') > new Date()).sort((a,b)=>a.ende<b.ende?-1:1);
+      if(!sz.length) return '';
+      const ant = Math.max(0, Math.min(1, (new Date(sz[0].ende+'T12:00:00Z') - new Date())/31557600000));
+      const vw = sz[0].eps*ant + (sz[1] ? sz[1].eps : sz[0].eps)*(1-ant), fvV = vw*FVR, abV = (kurs/fvV-1)*100, nV = npe ? (kurs/(vw*npe)-1)*100 : null;
+      return kachel('⚠ Mit Vorwärts-Gewinn', kiNum(fvV), `Gewinn 12 M. ${kiNum(vw,2)} (Konsens) · ${abV>=0 ? kiNum(abV,0)+' % über' : kiNum(-abV,0)+' % unter'} FV${nV!=null ? ' · Normal-KGV ' + (nV>=0?'+':'') + kiNum(nV,0) + ' %' : ''} · letzter Gewinn ${kiNum((epsT/med-1)*100,0)} % unter Vorjahren`, abV>10 ? '#dc2626' : (abV<-10 ? '#16a34a' : '#d97706'));
+    })();
   const zeilen = pkt.slice(-12);
   const zelle = (inhalt, extra='')=>`<td style="padding:2px 6px;text-align:right;${extra}">${inhalt}</td>`;
   const tabelle = `<table style="font-size:11.5px;border-collapse:collapse;margin-top:6px;white-space:nowrap;">

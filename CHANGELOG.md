@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.51 – 20.11.2026
+- Bewertung bei Gewinneinbruch (über 40 % unter den Vorjahren, z. B. Hershey 2025): zusätzlich mit dem Analysten-Gewinn der nächsten 12 Monate, eigene Kachel im Chart und Hinweis in der Bewertungsliste.
+
 ## 1.50 – 20.11.2026
 - Bewertung: Firmen mit zwei Aktiengattungen (z. B. Hershey) haben wieder die volle Gewinnhistorie aus den SEC-Berichten statt nur 4 Jahre.
 - Reiter Analyse: Order Blocks sind wieder standardmäßig an.
