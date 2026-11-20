@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.50 – 20.11.2026
+- Bewertung: Firmen mit zwei Aktiengattungen (z. B. Hershey) haben wieder die volle Gewinnhistorie aus den SEC-Berichten statt nur 4 Jahre.
+- Reiter Analyse: Order Blocks sind wieder standardmäßig an.
+
 ## 1.49 – 20.11.2026
 - Reiter Analyse aufgeräumt: standardmäßig nur offene Monats-Pivots (Beschriftung rechts an der Preisachse) und neu Fibonacci-Stufen aus Monatskerzen (23,6 bis 78,6 %, Ziele 127,2 / 161,8 %). Alle anderen Ebenen bleiben zuschaltbar.
 

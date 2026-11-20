@@ -188,6 +188,25 @@ function bewertung_reihen($symbol, $neu = false) {
             }
             ksort($aktien);
         }
+        // Zwei Aktiengattungen (20.11.2026, Hershey HSY: Common + Class B): seit 2015 stehen verwaesserte Aktienzahl und Gewinn je
+        // Aktie nur noch je Gattung in der SEC-Meldung, ohne Gesamtwert -> Reihe endete 2014, Chart fiel auf 4 Jahre Yahoo zurueck.
+        // Fuer Jahre mit Gewinn, aber ohne Aktienzahl: Aktien im Umlauf zum Bilanzstichtag (Summe aller Gattungen); fehlt auch der
+        // gemeldete Gewinn je Aktie, Gewinn / diese Aktienzahl.
+        if ($tax === 'us-gaap') {
+            $gewinnG = $gewinnJ ?? $hole('gewinn');
+            $fehlt = array_diff_key($gewinnG, $aktien);
+            if ($fehlt) {
+                foreach ($ciks as $ck) {
+                    $js = br_sec_json("https://data.sec.gov/api/xbrl/companyconcept/CIK{$ck}/us-gaap/CommonStockSharesOutstanding.json");
+                    foreach ($js['units']['shares'] ?? [] as $x) {
+                        $d = $x['end'] ?? ''; if (!isset($fehlt[$d]) || isset($aktien[$d]) || ($x['form'] ?? '') !== '10-K' || !(($x['val'] ?? 0) > 0)) continue;
+                        $aktien[$d] = (float) $x['val']; $GLOBALS['br_filed']['aktien'][$d] = $x['filed'] ?? '';
+                        if (!isset($epsJ[$d]) && $gewinnG[$d] != 0) { $epsJ[$d] = $gewinnG[$d] / $aktien[$d]; $GLOBALS['br_filed']['eps'][$d] = $x['filed'] ?? ''; }
+                    }
+                }
+                ksort($aktien); ksort($epsJ);
+            }
+        }
         if ($aktien || $epsJ) {
             $out['quelle'] = $tax === 'ifrs-full' ? 'sec-ifrs' : 'sec';
             $out['waehrung'] = $waehr ?: 'USD';

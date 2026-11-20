@@ -70,7 +70,7 @@ const KI_TABS = {
   bewertung: {name:'Bewertung', an:['fvl','npe','divfl','prog','rez','kauf','rendite','fv','sb','split']},   // Faecher aus nach Vorlage (Uebersicht)
   fitness: {name:'Fitness', an:[]},   // Finanzielle Fitness + Finanzzahlen ohne Kurschart nach Vorlage "Fiscal fitness")
   div:   {name:'Dividende', an:['divwert','divhist','rendite','kauf']},   // Umbau 20.11.2026: Bewertung nach Dividendenrendite statt Doppel zum Bewertungs-Reiter
-  analyse: {name:'Analyse', an:['mpiv','fib','kauf']},   // Nutzer 20.11.2026: nur offene Pivots + Fibonacci, Rest zuschaltbar
+  analyse: {name:'Analyse', an:['mpiv','fib','ob','kauf']},   // Order Blocks wieder an (Nutzer 20.11.2026)   // Nutzer 20.11.2026: nur offene Pivots + Fibonacci, Rest zuschaltbar
 };
 // Wendepunkte: Hoch/Tief, das n Kerzen links und rechts uebertrifft. Beschriftung gegenueber dem vorigen gleichen Typ:
 // HH/LH (hoeheres/tieferes Hoch), HL/LL (hoeheres/tieferes Tief).
