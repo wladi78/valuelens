@@ -43,6 +43,16 @@ function br_sec_json($url) {
     $GLOBALS['br_sec_fehler'] = ($GLOBALS['br_sec_fehler'] ?? 0) + 1;
     return [];
 }
+// Woechentliche Kontrolle (bigboard-lib.php, sonntags im Nachtlauf; 20.11.2026): Einheitenfehler in den Gewinnreihen aller
+// Zwischenspeicher suchen und die betroffenen Titel neu holen. Gibt [gefunden, repariert, rest] zurueck.
+function br_einheiten_pruefen(int $budget = 300): array {
+    $sprung = function ($c) { $v = array_values(array_filter(array_map(fn($e) => $e['v'], $c['reihen']['operativ'] ?? []), fn($v) => $v > 0.05));
+        for ($i = 1; $i < count($v); $i++) if ($v[$i] / $v[$i - 1] > 300 || $v[$i - 1] / $v[$i] > 300) return true; return false; };
+    $start = time(); $gef = []; $rest = [];
+    foreach (glob(__DIR__ . '/data/cache/bewertung/*.json') ?: [] as $f) { $c = json_decode((string) @file_get_contents($f), true); if (is_array($c) && $sprung($c)) $gef[] = basename($f, '.json'); }
+    foreach ($gef as $s) { if (time() - $start > $budget) { $rest[] = $s; continue; } try { $c = bewertung_reihen($s, true); if ($sprung($c)) $rest[] = $s; } catch (Throwable $e) { $rest[] = $s; } }
+    return ['gefunden' => count($gef), 'repariert' => count($gef) - count($rest), 'rest' => $rest];
+}
 function bewertung_reihen($symbol, $neu = false) {
     $GLOBALS['br_sec_fehler'] = 0;
     $GLOBALS['br_auslaendisch'] = false;
@@ -135,7 +145,7 @@ function bewertung_reihen($symbol, $neu = false) {
         if (count($aktien) >= 3) {
             $med = br_median(array_values(array_filter($aktien, fn($x) => $x > 0)));
             foreach ($aktien as $d => $n) {
-                if ($med && $n > 0 && $n * 1000 < $med) {
+                if ($med && $n > 0 && $n * 300 < $med) {   // 300 statt 1.000 (20.11.2026: GPC 2010 lag genau beim Faktor 1.000)
                     $neu = null;
                     foreach ([1e3, 1e6, 1e9] as $f) { $q = $n * $f / $med; if ($q > 0.3 && $q < 3) { $neu = $n * $f; break; } }
                     if ($neu) $aktien[$d] = $neu; else unset($aktien[$d]);
@@ -164,6 +174,12 @@ function bewertung_reihen($symbol, $neu = false) {
                     foreach ([1e3, 1e6, 1e-3, 1e-6] as $f) { $q = $n * $f / $soll; if ($q > 0.5 && $q < 2) { $neu = $n * $f; break; } }
                     if ($neu) $aktien[$d] = $neu; else unset($aktien[$d]);
                 }
+            }
+            $jung = array_values(array_filter(array_slice($aktien, -3), fn($x) => $x > 0)); $ref = count($jung) >= 2 ? br_median($jung) : null;
+            if ($ref) foreach ($aktien as $d => $n) {
+                if (isset($epsJ[$d]) || !$n || $n <= 0 || $n * 300 >= $ref) continue;   // nur Jahre ohne EPS-Gegenprobe, nur zu kleine Werte
+                $neu = null; foreach ([1e3, 1e6] as $f) { $q = $n * $f / $ref; if ($q > 0.3 && $q < 3) { $neu = $n * $f; break; } }
+                if ($neu) $aktien[$d] = $neu; else unset($aktien[$d]);
             }
             foreach ($epsJ as $d => $e) {
                 if (isset($aktien[$d]) || abs($e) < 0.01 || empty($gewinnJ[$d]) || $gewinnJ[$d] / $e <= 0) continue;

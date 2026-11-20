@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.42 – 20.11.2026
+- Bewertung: Gewinnreihen werden sonntags im Nachtlauf auf falsche Einheiten (Aktienzahl in Tausend) geprüft und repariert; Tenaris und Genuine Parts sind korrigiert.
+- Big Board: Sonderdividenden werden auch am 5-Jahres-Renditeschnitt erkannt (z. B. RLI, Dillard's, W. R. Berkley).
+
 ## 1.41 – 19.11.2026
 - Big Board: Rendite-Vergleich mit dem 5-Jahres-Schnitt zählt nicht mehr, wenn Sonderdividenden oder eine Kürzung ihn verzerren.
 

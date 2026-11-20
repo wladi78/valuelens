@@ -80,8 +80,15 @@ function bb_kraft(array $s): array {
 // Sonderdividenden erkennen: 5-J.-Wachstum weit unter 1 J. und 10 J. (ORI, AFG) - dann 10-J.-Wachstum und keine Renditebewertung
 function bb_sonder(array $s): bool {
     $g1 = $s['dgr1y'] ?? null; $g5 = $s['dgr5y'] ?? null; $g10 = $s['dgr10y'] ?? null;
+    $y = $s['divYield'] ?? 0; $a5 = $s['avgYield5y'] ?? 0;
+    if ($y > 0 && $a5 > 0 && $a5 / $y > 2.5) return true;   // 20.11.2026: RLI 4,6/1,05, DDS 5,25/0,2, WRB 2,2/0,53 - Sonderdividenden im Schnitt
     if ($g5 === null || $g10 === null) return false;
-    return ($g5 < 0 && $g10 > 0) || ($g1 !== null && $g1 > 10 && $g10 > 8 && $g5 < $g10 / 3);
+    return ($g5 < 0 && $g10 > 0) || ($g1 !== null && $g1 > 10 && $g10 > 8 && $g5 < $g10 / 3) || $g5 > 50;
+}
+function bb_grenzen(array $z): array {
+    if (($z['r1'] ?? null) !== null && ($z['r1'] < 0.3 || $z['r1'] > 2.5)) $z['r1'] = null;
+    if (($z['r2'] ?? null) !== null && ($z['r2'] < 0.2 || $z['r2'] > 5)) $z['r2'] = null;
+    return $z;
 }
 function bb_farbe($p) { return $p === null ? null : ($p < 0.9 ? 'gruen' : ($p <= 1.1 ? 'gelb' : 'orange')); }
 function bb_pfp(array $z) { $w = array_values(array_filter([$z['r1'] ?? null, $z['r2'] ?? null, $z['r3'] ?? null], fn($v) => $v !== null && $v > 0)); return $w ? array_sum($w) / count($w) : null; }
@@ -230,10 +237,13 @@ function bb_rechnen(int $budget = 1500): array {
                 $z['bewertet'] = date('c'); $neuBewertet++;
             } catch (Throwable $e) {}
         } elseif ($kandidat && !$frisch) $offen++;
+        $z = bb_grenzen($z);
         $z['pfp'] = bb_pfp($z); $z['best'] = bb_best($z);
         $zeilen[] = $z;
     }
-    $out = ['stand' => date('c'), 'ddbStand' => $ddb['updatedAt'] ?? null, 'anzahl' => count($zeilen), 'neuBewertet' => $neuBewertet,
+    $einheiten = null;
+    if ($budget >= 1000 && (int) date('N') === 7 && time() - $start < $budget) $einheiten = br_einheiten_pruefen();
+    $out = ['stand' => date('c'), 'ddbStand' => $ddb['updatedAt'] ?? null, 'einheiten' => $einheiten, 'anzahl' => count($zeilen), 'neuBewertet' => $neuBewertet,
         'fmpSperre' => $gesperrt ?: null, 'etfMitglieder' => count($etfs), 'offen' => $offen, 'zeilen' => $zeilen];
     if (!is_dir(dirname(bb_datei()))) @mkdir(dirname(bb_datei()), 0700, true);
     $tmp = bb_datei() . '.tmp'; if (@file_put_contents($tmp, json_encode($out, JSON_UNESCAPED_UNICODE)) !== false) @rename($tmp, bb_datei());

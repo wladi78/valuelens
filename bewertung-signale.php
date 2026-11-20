@@ -147,6 +147,7 @@ try {
     require_once __DIR__ . '/bigboard-lib.php';
     $bb = bb_rechnen(1500);
     echo 'Big Board: ', $bb['anzahl'], ' Titel, ', $bb['neuBewertet'], ' neu bewertet, ', count(array_filter($bb['zeilen'], fn($z) => $z['best'])), ' Best Bets', $bb['fmpSperre'] ? ' (FMP: ' . $bb['fmpSperre'] . ')' : '', "\n";
+    if (!empty($bb['einheiten'])) echo 'Gewinnreihen mit Einheitenfehler: ', $bb['einheiten']['gefunden'], ' gefunden, ', $bb['einheiten']['repariert'], ' repariert', $bb['einheiten']['rest'] ? ' (offen: ' . implode(' ', $bb['einheiten']['rest']) . ')' : '', "\n";
     $bbState = $dataDir . '/bigboard_bericht.json'; $bbAlt = json_decode((string) @file_get_contents($bbState), true) ?: [];
     if ((int) date('j') === 1 && ($bbAlt['monat'] ?? '') !== date('Y-m')) {
         $bbText = bb_bericht_text($bb);
