@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.45 – 20.11.2026
+- Prognose-Fächer mit Szenarien: Korridor fest (7,5–21×) oder um das Normal-KGV (0,5–1,4×, aus 5 bis 15 Geschäftsjahren); Gewinnwachstum aus Analysten-Langfrist, eigener Historie (5/10 J.) oder eigener Eingabe; 6 Jahre.
+- Schätzung: Band aus höchster und niedrigster Analystenschätzung.
+
 ## 1.44 – 20.11.2026
 - Chart: Die Linie „Aktuelle Bewertung“ ist grau gestrichelt, damit der Kurs darauf sichtbar bleibt; das Kursende ist als Punkt markiert.
 - Renditerechner: rote Linie vom Start- zum Zielpunkt.
