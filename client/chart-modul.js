@@ -51,14 +51,25 @@ function kiChartLib(){
 const KI_EBENEN = [
   ['kz',     'KI-Kaufzonen'], ['sb', 'KI Strong Buy'], ['fv', 'KI Fair Value'], ['sr', 'Support/Widerstand'], ['ob', 'Order Blocks'],
   ['kauf',   'Käufe + Einstand'], ['fvl', 'Fair Value KGV 15'], ['npe', 'Normal-KGV'], ['divfl', 'Dividendenfläche'], ['cvr', 'Eigenes KGV'], ['por', 'Ausschüttungsquote %'], ['split', 'Splits'], ['divdekl', 'Dividendenmarken'],
-  ['prog',   'Schätzung'], ['faecher', 'Prognose-Fächer'], ['rendite', 'Div.-Rendite %'], ['div3', '3 %-Linie'], ['divhist', 'Dividendenbalken'], ['rez', 'Rezessionen'],
+  ['prog',   'Schätzung'], ['faecher', 'Prognose-Fächer'], ['rendite', 'Div.-Rendite %'], ['divwert', 'Dividenden-Bewertung'], ['div3', '3 %-Linie'], ['divhist', 'Dividendenbalken'], ['rez', 'Rezessionen'],
   ['struktur', 'Struktur HH/HL'], ['pd', 'Premium/Discount'], ['tiefs', 'Monatstiefs'], ['pivots', 'Pivots'], ['mpiv', 'Offene Monats-Pivots'], ['elder', 'Elder Impulse'], ['osz', 'Oszillatoren'],
 ];
+// 12-Monats-Dividende bis 'ende' (ms): Summe der letzten f Zahlungen, f = Zahlungen je Jahr aus den 3 Jahren davor.
+// Das starre 365-Tage-Fenster verlor am Rand eine Zahlung (KO 20.11.2026: Ex-Tag Ende November knapp ausserhalb -> Rendite
+// und 3-%-Linie stuerzten im letzten Monat ab). Letzte Zahlung aelter als 400 Tage -> 0 (Dividende eingestellt).
+function kiDivTtm(divs, ende){
+  const p = []; for(const [d,b] of divs){ const x = new Date(d+'T12:00:00Z').getTime(); if(x<=ende) p.push([x, Number(b)]); }
+  if(!p.length) return 0; p.sort((a,b)=>a[0]-b[0]);
+  const last = p[p.length-1][0]; if(ende - last > 400*86400000) return 0;
+  const J = 31557600000, spanne = (last - p[0][0]) / J;
+  const f = spanne >= 2.9 ? Math.round(p.filter(x=>x[0] > last - 3*J + 20*86400000).length / 3) : p.filter(x=>x[0] > last - J + 20*86400000).length;
+  return p.slice(-Math.max(1, Math.min(12, f))).reduce((s,x)=>s+x[1], 0);
+}
 const KI_TABS = {
   zonen: {name:'Zonen',     an:['kz','sb','fv','sr','ob','kauf','fvl']},
   bewertung: {name:'Bewertung', an:['fvl','npe','divfl','prog','rez','kauf','rendite','fv','sb','split']},   // Faecher aus nach Vorlage (Uebersicht)
   fitness: {name:'Fitness', an:[]},   // Finanzielle Fitness + Finanzzahlen ohne Kurschart nach Vorlage "Fiscal fitness")
-  div:   {name:'Dividende', an:['div3','divhist','rendite','kauf','divfl']},
+  div:   {name:'Dividende', an:['divwert','divhist','rendite','kauf']},   // Umbau 20.11.2026: Bewertung nach Dividendenrendite statt Doppel zum Bewertungs-Reiter
   analyse: {name:'Analyse', an:['ob','struktur','pd','tiefs','pivots','mpiv','osz','kauf']},
 };
 // Wendepunkte: Hoch/Tief, das n Kerzen links und rechts uebertrifft. Beschriftung gegenueber dem vorigen gleichen Typ:
@@ -1589,7 +1600,7 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
   const brauchtGewinne = E.fvl || E.npe || E.divfl || E.prog;
   const LS = LightweightCharts.LineStyle;
   const tag = s=>new Date(s+'T12:00:00Z').getTime();
-  const ttmBis = ende=>divs.reduce((s,[x,b])=>{ const t = tag(x); return (t<=ende && t>ende-365*86400000) ? s+Number(b) : s; }, 0);
+  const ttmBis = ende=>kiDivTtm(divs, ende);
   const wKurs = (j.currency||'').toUpperCase();
   // Dividendenrendite auf eigener Achse links (in %) - braucht keine Gewinne
   if(E.rendite && divs.length){
@@ -2303,21 +2314,72 @@ async function chartZeichnenIntern(ctx, interval){
   _kiFitDivs = {sym:String(ctx.sym||''), divs};   // fuer die Finanzielle Fitness: gezahlte Dividende je Geschaeftsjahr nach Vorlage
   if(_kiTab==='bewertung' && _kiFitDaten[String(ctx.sym||'')]) setTimeout(()=>kiFitnessZeichnen(String(ctx.sym||'')), 0);
   let divInfo = '';
-  if(divs.length && (E.divhist || E.div3)){
+  { const alt = document.getElementById('kiDivTabelle'); if(alt) alt.remove(); }
+  if(divs.length && (E.divhist || E.div3 || E.divwert)){
     const tag = s=>new Date(s+'T12:00:00Z').getTime();
-    const ttm = t=>{ const ende = interval==='1mo' ? tag(t) + 30*86400000 : tag(t); return divs.reduce((s,[d,b])=>{ const x = tag(d); return (x<=ende && x>ende-365*86400000) ? s+Number(b) : s; }, 0); };
+    const ttm = t=>kiDivTtm(divs, interval==='1mo' ? tag(t) + 30*86400000 : tag(t));
+    // Linien nie unter 0 und hoechstens bis zum 2,5-fachen Kurshoch skalieren (Nutzer 20.11.2026: Achse lief bis -220)
+    const kHoch = Math.max(...j.kerzen.map(k=>k[2]).filter(Number.isFinite));
+    const skala = orig=>{ const r = orig(); if(r && r.priceRange){ r.priceRange.minValue = Math.max(0, r.priceRange.minValue); if(isFinite(kHoch)) r.priceRange.maxValue = Math.min(r.priceRange.maxValue, kHoch*2.5); } return r; };
     if(E.divhist){
-      const proKerze = {};
-      divs.forEach(([d, betrag])=>{ const k = kerzeZu(d); if(k) proKerze[k] = (proKerze[k]||0) + Number(betrag); });
-      const hist = chart.addHistogramSeries({priceScaleId:'div', color:'rgba(202,138,4,.55)', lastValueVisible:false, priceLineVisible:false, priceFormat:{type:'price', precision:2, minMove:0.01}});
-      chart.priceScale('div').applyOptions({scaleMargins:{top:0.84, bottom:0}});
-      hist.setData(zeiten.filter(t=>proKerze[t]).map(t=>({time:t, value:proKerze[t]})));
-      divInfo += `<span><span style="display:inline-block;width:10px;height:8px;background:rgba(202,138,4,.55);vertical-align:middle;margin-right:4px;"></span>Dividendenbalken (je ${interval==='1mo'?'Monat':(interval==='1wk'?'Woche':'Tag')})</span>`;
+      // Balken je Kalenderjahr (statt je Zahlung) mit Wachstum gegen das Vorjahr; Sonderausschuettungen rot daneben
+      const jahrSumme = {}, letzteKerze = {};
+      divs.forEach(([d,b])=>{ const y = d.slice(0,4); jahrSumme[y] = (jahrSumme[y]||0) + Number(b); });
+      zeiten.forEach(z=>{ letzteKerze[String(z).slice(0,4)] = z; });
+      const jahre = Object.keys(jahrSumme).sort().filter(y=>letzteKerze[y]);
+      const lfd = String(new Date().getUTCFullYear());
+      const hist = chart.addHistogramSeries({priceScaleId:'div', color:'rgba(202,138,4,.6)', lastValueVisible:false, priceLineVisible:false, priceFormat:{type:'price', precision:2, minMove:0.01}});
+      chart.priceScale('div').applyOptions({scaleMargins:{top:0.78, bottom:0}});
+      hist.setData(jahre.map(y=>({time:letzteKerze[y], value:jahrSumme[y], color: y===lfd ? 'rgba(202,138,4,.3)' : 'rgba(202,138,4,.6)'})));
+      const mk = []; jahre.forEach((y,i)=>{ if(i===0 || y===lfd) return; const v = jahrSumme[jahre[i-1]]; if(!(v>0)) return; const g = (jahrSumme[y]/v-1)*100;
+        if(jahre.length<=26 || i%2===0) mk.push({time:letzteKerze[y], position:'aboveBar', color: g>=0 ? '#15803d' : '#dc2626', shape:'circle', size:0.1, text:(g>=0?'+':'')+kiNum(g,0)+'%'}); });
+      try{ hist.setMarkers(mk); }catch(e){}
+      divInfo += `<span><span style="display:inline-block;width:10px;height:8px;background:rgba(202,138,4,.6);vertical-align:middle;margin-right:4px;"></span>Dividende je Jahr mit Wachstum (${lfd} hell = laufend)</span>`;
+    }
+    if(E.divwert){
+      // Bewertung nach Dividendenrendite (Methode G. Weiss, "Dividends Don't Lie"): Rendite der letzten 10 Jahre je Monat;
+      // Kurs bei hoher Rendite (85. Perzentil) = guenstig, Median = normal, niedrige Rendite (15. Perzentil) = teuer.
+      const kz = {}; j.kerzen.forEach(k=>{ kz[k[0]] = k[4]; });
+      const grenze = tag(zeiten[zeiten.length-1]) - 10*31557600000;
+      const ys = zeiten.filter(z=>tag(z) >= grenze && kz[z]>0).map(z=>{ const s = ttm(z); return s>0 ? s/kz[z] : null; }).filter(v=>v>0).sort((a,b)=>a-b);
+      if(ys.length >= 24){
+        const q = p2=>ys[Math.min(ys.length-1, Math.max(0, Math.round(p2*(ys.length-1))))];
+        const yHoch = q(0.85), yNorm = q(0.5), yTief = q(0.15);
+        [[yHoch,'#16a34a','günstig'],[yNorm,'#2563eb','normal'],[yTief,'#dc2626','teuer']].forEach(([y,farbe,n])=>{
+          const ls = chart.addLineSeries({color:farbe, lineWidth:n==='normal'?2:1, lineStyle:n==='normal'?0:2, priceLineVisible:false, lastValueVisible:true, crosshairMarkerVisible:false,
+            title:`${n} (${kiNum(y*100,2)} %)`, autoscaleInfoProvider:skala});
+          ls.setData(zeiten.filter(z=>tag(z) >= grenze).map(z=>{ const s = ttm(z); return s>0 ? {time:z, value:s/y} : {time:z}; }));
+        });
+        const sJ = ttm(zeiten[zeiten.length-1]), kJ = j.kerzen[j.kerzen.length-1][4], yJ = kJ>0 ? sJ/kJ : 0;
+        const urteil = yJ >= yHoch ? ['günstig','#16a34a'] : yJ <= yTief ? ['teuer','#dc2626'] : yJ >= yNorm ? ['eher günstig','#15803d'] : ['eher teuer','#b45309'];
+        divInfo += `<span><b>Dividenden-Bewertung (10 J.):</b> Rendite jetzt ${kiNum(yJ*100,2)} % · normal ${kiNum(yNorm*100,2)} % · Spanne ${kiNum(yTief*100,2)}–${kiNum(yHoch*100,2)} % → <b style="color:${urteil[1]}">${urteil[0]}</b> · Kurs bei normaler Rendite ${kiNum(sJ/yNorm)} ${escapeHtml(wKurs)}</span>`;
+      }
+      // Tabelle wie Vorlage "Dividend Cash Flow": 1.000 angelegt vor 10 Jahren (bzw. ab erstem Kurs), Dividenden zum Monatsschluss wieder angelegt
+      const k0 = j.kerzen.find(k=>tag(k[0]) >= grenze) || j.kerzen[0];
+      if(k0 && k0[4]>0){
+        const schluss = d=>{ let c = null; for(const k of j.kerzen){ if(k[0] <= d) c = k[4]; else break; } return c; };
+        let st = 1000 / k0[4]; const zeilen = {};
+        divs.filter(([d])=>d >= k0[0]).sort((a,b)=>a[0]<b[0]?-1:1).forEach(([d,b])=>{ const y = d.slice(0,4), c = schluss(d) || k0[4]; const bar = st*Number(b);
+          const z = zeilen[y] || (zeilen[y] = {dps:0, bar:0}); z.dps += Number(b); z.bar += bar; st += bar / c; z.st = st; });
+        const js = Object.keys(zeilen).sort().reverse();
+        if(js.length){
+          const box2 = document.createElement('div'); box2.id = 'kiDivTabelle'; box2.style.cssText = 'margin-top:10px;font-size:12px;';
+          const kE = j.kerzen[j.kerzen.length-1][4], summeBar = js.reduce((s,y)=>s+zeilen[y].bar, 0);
+          box2.innerHTML = `<div style="font-weight:700;margin-bottom:4px;">Dividenden-Cashflow: 1.000 ${escapeHtml(wKurs)} angelegt am ${escapeHtml(k0[0])} zu ${kiNum(k0[4])}, Dividenden wieder angelegt</div>
+            <div class="muted" style="font-size:11px;margin-bottom:4px;">heute ${kiNum(st,2)} Stück × ${kiNum(kE)} = <b>${kiNum(st*kE,2)}</b> · Dividenden zusammen ${kiNum(summeBar,2)} · Yield on Cost = Dividende je Aktie des Jahres ÷ Kaufkurs ${kiNum(k0[4])}</div>
+            <div class="table-scroll"><table class="tbl" style="font-size:12px;"><thead><tr><th>Jahr</th><th>Dividende je Aktie</th><th>Wachstum</th><th>Stück Jahresende</th><th>Dividenden erhalten</th><th>Yield on Cost</th></tr></thead><tbody>`
+            + js.map((y,i)=>{ const z = zeilen[y], v = zeilen[js[i+1]]; const g = v && v.dps>0 ? (z.dps/v.dps-1)*100 : null;
+              return `<tr><td>${y}${y===String(new Date().getUTCFullYear()) ? ' <span class="muted">(lfd.)</span>' : ''}</td><td>${kiNum(z.dps,2)}</td><td style="color:${g==null?'':(g>=0?'#16a34a':'#dc2626')}">${g==null?'–':(g>=0?'+':'')+kiNum(g,1)+' %'}</td><td>${kiNum(z.st,2)}</td><td>${kiNum(z.bar,2)}</td><td>${kiNum(z.dps/k0[4]*100,2)} %</td></tr>`; }).join('')
+            + `</tbody></table></div>`;
+          const nach = document.getElementById('kiChartLegende') || document.getElementById('kiChartBox');
+          if(nach && _kiTab==='div') nach.after(box2);
+        }
+      }
     }
     if(E.div3){
       const drei = []; zeiten.forEach(t=>{ const s = ttm(t); if(s>0) drei.push({time:t, value:s/0.03}); });
       if(drei.length){
-        const ls = chart.addLineSeries({color:'#ca8a04', lineWidth:2, priceLineVisible:false, lastValueVisible:true, title:'3 % Rendite'});
+        const ls = chart.addLineSeries({color:'#ca8a04', lineWidth:2, priceLineVisible:false, lastValueVisible:true, title:'3 % Rendite', autoscaleInfoProvider:skala});
         ls.setData(drei);
         const letzt = ttm(zeiten[zeiten.length-1]);
         divInfo += `<span><span style="display:inline-block;width:10px;height:3px;background:#ca8a04;vertical-align:middle;margin-right:4px;"></span>3 %-Rendite-Kurs ${kiNum(letzt/0.03)} (Dividende 12 M ${kiNum(letzt)} ${escapeHtml(wKurs)})</span>`;

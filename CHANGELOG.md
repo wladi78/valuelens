@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.47 – 20.11.2026
+- Reiter Dividende neu: Bewertung nach Dividendenrendite (Kurs bei normaler, hoher und niedriger Rendite der letzten 10 Jahre), Balken je Jahr mit Wachstum, Tabelle Dividenden-Cashflow mit Wiederanlage und Yield on Cost.
+- 12-Monats-Dividende genauer: Rendite- und 3-%-Linie stürzen im letzten Monat nicht mehr ab.
+
 ## 1.46 – 20.11.2026
 - Prognose-Fächer wieder wie vor 1.45: Die Szenarien gibt es schon im Bereich „Prognose“ unter dem Chart (Schätzungen, Normal-KGV, LT-Wachstum, Hist. Wachstum, Eigene).
 
