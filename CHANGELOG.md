@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.48 – 20.11.2026
+- Dividenden-Tabelle: Für das laufende Jahr wird kein Wachstum mehr angezeigt (noch nicht alle Zahlungen).
+
 ## 1.47 – 20.11.2026
 - Reiter Dividende neu: Bewertung nach Dividendenrendite (Kurs bei normaler, hoher und niedriger Rendite der letzten 10 Jahre), Balken je Jahr mit Wachstum, Tabelle Dividenden-Cashflow mit Wiederanlage und Yield on Cost.
 - 12-Monats-Dividende genauer: Rendite- und 3-%-Linie stürzen im letzten Monat nicht mehr ab.

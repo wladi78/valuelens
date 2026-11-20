@@ -2368,7 +2368,7 @@ async function chartZeichnenIntern(ctx, interval){
           box2.innerHTML = `<div style="font-weight:700;margin-bottom:4px;">Dividenden-Cashflow: 1.000 ${escapeHtml(wKurs)} angelegt am ${escapeHtml(k0[0])} zu ${kiNum(k0[4])}, Dividenden wieder angelegt</div>
             <div class="muted" style="font-size:11px;margin-bottom:4px;">heute ${kiNum(st,2)} Stück × ${kiNum(kE)} = <b>${kiNum(st*kE,2)}</b> · Dividenden zusammen ${kiNum(summeBar,2)} · Yield on Cost = Dividende je Aktie des Jahres ÷ Kaufkurs ${kiNum(k0[4])}</div>
             <div class="table-scroll"><table class="tbl" style="font-size:12px;"><thead><tr><th>Jahr</th><th>Dividende je Aktie</th><th>Wachstum</th><th>Stück Jahresende</th><th>Dividenden erhalten</th><th>Yield on Cost</th></tr></thead><tbody>`
-            + js.map((y,i)=>{ const z = zeilen[y], v = zeilen[js[i+1]]; const g = v && v.dps>0 ? (z.dps/v.dps-1)*100 : null;
+            + js.map((y,i)=>{ const z = zeilen[y], v = zeilen[js[i+1]]; const g = v && v.dps>0 && y!==String(new Date().getUTCFullYear()) ? (z.dps/v.dps-1)*100 : null;   // laufendes Jahr unvollstaendig
               return `<tr><td>${y}${y===String(new Date().getUTCFullYear()) ? ' <span class="muted">(lfd.)</span>' : ''}</td><td>${kiNum(z.dps,2)}</td><td style="color:${g==null?'':(g>=0?'#16a34a':'#dc2626')}">${g==null?'–':(g>=0?'+':'')+kiNum(g,1)+' %'}</td><td>${kiNum(z.st,2)}</td><td>${kiNum(z.bar,2)}</td><td>${kiNum(z.dps/k0[4]*100,2)} %</td></tr>`; }).join('')
             + `</tbody></table></div>`;
           const nach = document.getElementById('kiChartLegende') || document.getElementById('kiChartBox');
