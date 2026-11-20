@@ -1762,9 +1762,9 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
       for(let i=0;i<li.length-1;i++) if(hT>=li[i][0] && hT<=li[i+1][0]){ const f=(new Date(hT)-new Date(li[i][0]))/Math.max(1,(new Date(li[i+1][0])-new Date(li[i][0]))); eH = li[i][1]+(li[i+1][1]-li[i][1])*f; }
       const kursH = j.kerzen.length ? j.kerzen[j.kerzen.length-1][4] : null, kgvH = (eH>0 && kursH>0) ? kursH/eH : null;
       if(kgvH && kgvH < 80){
-        const cv = chart.addLineSeries({color:'#111', lineWidth:1, pointMarkersVisible:true, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, title:`Aktuelle Bewertung ${kiNum(kgvH,1)}×`});
+        const cv = chart.addLineSeries({color:'#64748b', lineWidth:1, lineStyle:LS.Dashed, pointMarkersVisible:true, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, title:`Aktuelle Bewertung ${kiNum(kgvH,1)}×`});
         cv.setData(pktX.filter(p=>p.eps>0).map(p=>({time:p.t, value:p.eps*kgvH})));
-        if(zuk.length){ const cz = chart.addLineSeries({color:'#111', lineWidth:2, lineStyle:LS.Dashed, pointMarkersVisible:true, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}); cz.setData(zuk.map(p=>({time:p.t, value:p.eps*kgvH}))); }
+        if(zuk.length){ const cz = chart.addLineSeries({color:'#64748b', lineWidth:2, lineStyle:LS.Dashed, pointMarkersVisible:true, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}); cz.setData(zuk.map(p=>({time:p.t, value:p.eps*kgvH}))); }
         if(_kiChart && _kiChart.chart===chart) _kiChart.kgvHeute = kgvH;
       }
     }
@@ -1793,6 +1793,9 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
     // Kurs obenauf (die Flaechen sind jetzt deckend nach Vorlage und wuerden ihn sonst verdecken)
     if(_kiTab==='bewertung'){ if(typeof _kiRenditeSpaet==='function'){ const f = _kiRenditeSpaet; _kiRenditeSpaet = null; f(); }
       const ko = chart.addLineSeries({color:'#111', lineWidth:2, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}); ko.setData(j.kerzen.map(k=>({time:k[0], value:k[4]})));
+      if(j.kerzen.length){ const kl = j.kerzen[j.kerzen.length-1];   // Kursende als Punkt (Nutzer 20.11.2026: auf der Bewertungslinie sonst nicht zu finden)
+        const kp = chart.addLineSeries({color:'#fff', lineVisible:false, pointMarkersVisible:true, pointMarkersRadius:6, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}); kp.setData([{time:kl[0], value:kl[4]}]);
+        const kq = chart.addLineSeries({color:'#111', lineVisible:false, pointMarkersVisible:true, pointMarkersRadius:4, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false}); kq.setData([{time:kl[0], value:kl[4]}]); }
       _kiKursOben = ko; _kiKursChart = chart; _kiKursAm = {}; j.kerzen.forEach(k=>{ _kiKursAm[k[0]] = k[4]; }); kiObenMarker(); }
   }
   // Zeitraum NACH Faecher/Schaetzung erneut setzen: vorher endete die Achse am letzten Kurs, die 5 Prognosejahre klebten am
@@ -1875,7 +1878,7 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
           <table style="width:100%;min-width:0;table-layout:fixed;font-size:12px;border-collapse:collapse;">
             ${zeile('Normal-KGV', npe5 ? kiNum(npe5,2)+'×' : '–', '#2563eb', 'linie')}
             ${zeile('Fair-Value-Faktor', kiNum(FVR,2)+'×', '#ea580c', 'linie')}
-            ${zeile('KGV gemischt <span class="muted" style="font-size:10.5px;">(Aktuelle Bewertung)</span>', epsBlend>0 ? kiNum(kursJetzt/epsBlend,2)+'×' : '–', '#111111', 'duenn')}
+            ${zeile('KGV gemischt <span class="muted" style="font-size:10.5px;">(Aktuelle Bewertung)</span>', epsBlend>0 ? kiNum(kursJetzt/epsBlend,2)+'×' : '–', '#64748b', 'duenn')}
             ${zeile('Kurs heute', kiNum(kursJetzt)+' '+escapeHtml(wKurs), '#111111', 'linie')}
             ${zeile('Fair Value heute', kiNum(fvJetzt)+' '+escapeHtml(wKurs), '#ea580c')}
             ${zeile('Kurs ' + ende.date.slice(0,7) + ' (' + kiNum(faktor,1) + '×)', kiNum(kursZiel)+' '+escapeHtml(wKurs), '#111111')}
@@ -2444,7 +2447,7 @@ async function chartZeichnenIntern(ctx, interval){
         h += `<table style="min-width:0;width:100%;margin-top:4px;border-collapse:collapse;"><tr class="muted"><td></td><td style="text-align:right;">KGV</td><td style="text-align:right;">Wert</td><td style="text-align:right;">zum Kurs</td></tr>
           <tr><td><span style="color:#ea580c">●</span> Fair Value</td><td style="text-align:right;">${kiNum(fvr,2)}×</td><td style="text-align:right;">${kiNum(e*fvr)}</td><td style="text-align:right;">${pr(e*fvr)}</td></tr>`
           + (bw0.npe ? `<tr><td><span style="color:#2563eb">●</span> Normal-KGV</td><td style="text-align:right;">${kiNum(bw0.npe,2)}×</td><td style="text-align:right;">${kiNum(e*bw0.npe)}</td><td style="text-align:right;">${pr(e*bw0.npe)}</td></tr>` : '')
-          + (kgvH ? `<tr><td><span style="color:#111">●</span> Akt. Bewertung</td><td style="text-align:right;">${kiNum(kgvH,2)}×</td><td style="text-align:right;">${kiNum(e*kgvH)}</td><td style="text-align:right;">${pr(e*kgvH)}</td></tr>` : '') + `</table>`;
+          + (kgvH ? `<tr><td><span style="color:#64748b">●</span> Akt. Bewertung</td><td style="text-align:right;">${kiNum(kgvH,2)}×</td><td style="text-align:right;">${kiNum(e*kgvH)}</td><td style="text-align:right;">${pr(e*kgvH)}</td></tr>` : '') + `</table>`;
         h += `<div style="display:grid;grid-template-columns:auto auto auto auto;gap:2px 10px;margin-top:4px;border-top:1px solid var(--border);padding-top:3px;">
           <span class="muted">EPS</span><b>${kiNum(e,2)}</b><span class="muted"><span style="color:#b91c1c">●</span> Div.-Rendite</span><b>${d12>0 ? kiNum(d12/c*100,2)+' %' : '–'}</b>
           <span class="muted"><span style="color:#eab308">●</span> Dividende</span><b>${d12>0 ? kiNum(d12,2) : '–'}</b><span class="muted">Ausschüttung</span><b>${d12>0 ? kiNum(d12/e*100,1)+' %' : '–'}</b></div>`;
@@ -2452,7 +2455,7 @@ async function chartZeichnenIntern(ctx, interval){
       const kauf = _kiKaufInfo[par.time];
       if(kauf) kauf.forEach(t=>{ h += `<div style="margin-top:5px;border-top:1px solid var(--border);padding-top:3px;"><b style="color:#db2777;">KAUF</b> ${escapeHtml(new Date(t.date+'T12:00:00Z').toLocaleDateString('de-DE'))}<br>
           Stück <b>${kiNum(t.shares, t.shares%1?4:0)}</b> · Preis <b>${(()=>{ const pk = kiKaufPreisKurs(t); return pk!=null ? kiNum(pk) + (t.preis==null && t.eur!=null ? ' (' + kiNum(t.eur) + ' €)' : '') : (t.eur!=null ? kiNum(t.eur)+' €' : '–'); })()}</b>${t.betrag ? ' · Gesamt <b>'+kiNum(t.betrag)+' €</b>' : ''}${(e>0 && t.preis!=null) ? ' · KGV '+kiNum(t.preis/e,2)+'×' : ''}</div>`; });
-      hPunkte(par.point.x, e>0 ? [[e*fvr,'#ea580c'], [bw0.npe ? e*bw0.npe : 0,'#2563eb'], [kgvH ? e*kgvH : 0,'#111'], [d12*fvr,'#eab308'], [c,'#16a34a']] : [[c,'#16a34a']]);
+      hPunkte(par.point.x, e>0 ? [[e*fvr,'#ea580c'], [bw0.npe ? e*bw0.npe : 0,'#2563eb'], [kgvH ? e*kgvH : 0,'#64748b'], [d12*fvr,'#eab308'], [c,'#16a34a']] : [[c,'#16a34a']]);
       tipInhalt.innerHTML = h; tip.style.display = 'block'; tip.style.minWidth = '250px'; tipLage(par.point);
       return;
     }
@@ -2467,7 +2470,8 @@ async function chartZeichnenIntern(ctx, interval){
   // Renditerechner nach Vorlage (Nutzer 12.11.2026, AMGN-Bild): 1. Klick = Start (1.000 investiert), 2. Klick = Ziel
   // (Kurs, in der Zukunft Fair Value = Gewinn x Faktor), Dividenden dazwischen (Zukunft: letzte 12-Monats-Dividende je Jahr).
   { let rr = null; const boxen = [];
-    const weg = ()=>{ boxen.splice(0).forEach(b=>b.remove()); rr = null; };
+    let rrLinie = null;   // rote Linie Start -> Ziel (Nutzer 20.11.2026, wie im Vorbild)
+    const weg = ()=>{ boxen.splice(0).forEach(b=>b.remove()); rr = null; if(rrLinie){ try{ chart.removeSeries(rrLinie); }catch(e){} rrLinie = null; } };
     // Grundstellung oben links nebeneinander (Start, dann Ergebnis) wie im Vorbild - verdeckt nicht den Klickpunkt;
     // zusaetzlich frei ziehbar (Nutzer 20.11.2026)
     const kasten = (x, y, html)=>{ const d = document.createElement('div');
@@ -2501,6 +2505,8 @@ async function chartZeichnenIntern(ctx, interval){
       const jahre = (tagMs(t)-tagMs(rr.t0))/(365.25*86400000), mv = rr.n*p2, div = rr.n*divZwischen(rr.t0, t);
       const wachs = (p2/rr.p0-1)*100, annO = (Math.pow(p2/rr.p0, 1/Math.max(jahre,0.01))-1)*100, ges = ((mv+div)/1000-1)*100, annG = (Math.pow((mv+div)/1000, 1/Math.max(jahre,0.01))-1)*100;
       const epsC = (rr.e0>0 && e2>0) ? (Math.pow(e2/rr.e0, 1/Math.max(jahre,0.01))-1)*100 : null;
+      try{ rrLinie = chart.addLineSeries({color:'#dc2626', lineWidth:2, pointMarkersVisible:true, pointMarkersRadius:4, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false});
+        rrLinie.setData([{time:rr.t0, value:rr.p0}, {time:t, value:p2}]); }catch(e){ rrLinie = null; }
       kasten(par.point.x, par.point.y, `<div style="text-align:center;margin-bottom:3px;"><b>${tagD(t)}</b></div>` + zeile(k ? 'Schlusskurs' : 'Fair Value (Ziel)', kiNum(p2)) + (e2>0 ? zeile('KGV', kiNum(p2/e2,2)+'×', '#ea580c') : '')
         + `<div style="text-align:center;margin:3px 0;border-top:1px solid var(--border);padding-top:3px;">Rendite · Rate of Return (${kiNum(jahre,1)} J.)</div>`
         + zeile('Marktwert', kiNum(mv,2)) + zeile('Kursgewinn', pz(wachs), farbe(wachs)) + zeile('p. a. ohne Div.', pz(annO), farbe(annO))

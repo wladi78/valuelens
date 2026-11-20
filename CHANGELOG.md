@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.44 – 20.11.2026
+- Chart: Die Linie „Aktuelle Bewertung“ ist grau gestrichelt, damit der Kurs darauf sichtbar bleibt; das Kursende ist als Punkt markiert.
+- Renditerechner: rote Linie vom Start- zum Zielpunkt.
+
 ## 1.43 – 20.11.2026
 - Chart: Das Infofeld erscheint links oberhalb der Maus und verdeckt die Linie nicht mehr. Rechtsklick in den Chart heftet es an – dann lässt es sich verschieben oder links ablegen.
 - Renditerechner: Die Kästen stehen oben links nebeneinander und lassen sich frei verschieben.
