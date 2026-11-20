@@ -228,6 +228,8 @@ function bb_rechnen(int $budget = 1500): array {
             try {
                 $b = bewertung_zeile($sym, (string) ($s['sector'] ?? ''));
                 $z['r2'] = (isset($b['abwN']) && is_finite($b['abwN'])) ? 1 + $b['abwN'] / 100 : null;
+                // Gewinneinbruch (ab -40 %, z. B. HSY 2025): mit dem Vorwaerts-Gewinn (Konsens 12 Monate) bewerten (Nutzer 20.11.2026)
+                $z['vorw'] = isset($b['abwNVorw']) && is_finite($b['abwNVorw']); if ($z['vorw']) $z['r2'] = 1 + $b['abwNVorw'] / 100;
                 if ($z['r2'] !== null && ($z['r2'] < 0.2 || $z['r2'] > 5)) $z['r2'] = null;   // kaputte Gewinnreihe (19.11.2026: BMI Normal-KGV 0,04 -> r2 662) nicht mitteln $z['basis'] = $b['basis'] ?? ($b['fehler'] ?? null);
                 $kurs = $b['kurs'] ?? ($s['price'] ?? null);
                 $dcf = bb_fmp_dcf($sym, $gesperrt); $z['r3'] = ($dcf > 0 && $kurs > 0 && $kurs / $dcf > 0.2 && $kurs / $dcf < 5) ? $kurs / $dcf : null;

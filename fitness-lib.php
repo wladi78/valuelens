@@ -260,6 +260,19 @@ function firmen_info($symbol) {
     foreach ($q['recommendationTrend']['trend'] ?? [] as $t) $out['stimmung'][] = ['periode' => $t['period'] ?? '', 'starkKaufen' => (int) ($t['strongBuy'] ?? 0),
         'kaufen' => (int) ($t['buy'] ?? 0), 'halten' => (int) ($t['hold'] ?? 0), 'verkaufen' => (int) ($t['sell'] ?? 0), 'starkVerkaufen' => (int) ($t['strongSell'] ?? 0)];
     for ($i = 1; $i < count($out['trend']); $i++) if ($out['trend'][$i]['ende'] && $out['trend'][$i]['ende'] <= $out['trend'][$i - 1]['ende']) $out['trend'][$i]['ende'] = date('Y-m-d', strtotime($out['trend'][$i - 1]['ende'] . ' +1 year'));
+    // Schaetzungs-Verlauf fuer eine spaetere Trefferquote der Analysten (Vorlage "Analyst Scorecard": Schaetzung 1 bzw. 2 Jahre vorher
+    // gegen den Ist-Gewinn, Treffer bei +-10 % bzw. +-20 %). Vergangene Schaetzungen sind nicht frei abrufbar -> ab 20.11.2026 je Monat
+    // einmal den Konsens je Geschaeftsjahr festhalten (Nutzer: "Trefferquote ab jetzt selbst sammeln").
+    if ($out['trend']) {
+        $vd = __DIR__ . '/data/cache/schaetz-verlauf'; $vf = $vd . '/' . preg_replace('/[^A-Z0-9.\-]/', '_', strtoupper($symbol)) . '.json';
+        $vl = json_decode((string) @file_get_contents($vf), true) ?: [];
+        $mon = date('Y-m');
+        if (!isset($vl[$mon])) {
+            $vl[$mon] = array_values(array_filter(array_map(fn($x) => ['ende' => $x['ende'], 'eps' => $x['mittel'], 'n' => $x['analysten']], $out['trend']), fn($x) => $x['ende'] && $x['eps'] !== null));
+            if (!is_dir($vd)) @mkdir($vd, 0700, true);
+            @file_put_contents($vf, json_encode($vl), LOCK_EX);
+        }
+    }
     if (!is_dir($dir)) @mkdir($dir, 0700, true);
     @file_put_contents($datei, json_encode($out, JSON_UNESCAPED_UNICODE));
     return $out;

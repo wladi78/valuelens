@@ -1,5 +1,14 @@
 # Änderungen
 
+## 1.53 – 20.11.2026
+- Bewertungsliste: neue Spalte „Normal vorwärts“ (Kurs gegen Normal-KGV mit dem Gewinn der nächsten 12 Monate), Filter „Gewinneinbruch“ und „vorwärts unter Normal-KGV“.
+- Prognose: Zeitraum für das Normal-KGV wählbar (5/7/10/15 Geschäftsjahre), KGV-Korridor und Spanne der Analystenschätzungen im Prognose-Chart.
+- Vergleich: bis zu 4 Vergleichswerte mit Komma (z. B. „SPY, GIS“).
+- Chart: Knopf „Log“ für eine logarithmische Kursachse.
+- Qualitäts-Score: Schnitt der Vergleichsfirmen gestrichelt im Netz.
+- Alarme: Kursgrenzen bei normaler/hoher Dividendenrendite und beim Normal-KGV mit Vorwärts-Gewinn.
+- Big Board: bei Gewinneinbruch mit Vorwärts-Gewinn bewertet.
+
 ## 1.52 – 20.11.2026
 - Bewertung: Visa, Erie, Greif, Haverty's, Constellation Brands und Exxon haben wieder die volle Gewinnhistorie aus den SEC-Berichten (Gewinn je Aktie direkt aus den 10-K-Berichten bzw. alte SEC-Nummer).
 

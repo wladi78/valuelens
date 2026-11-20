@@ -57,6 +57,12 @@ const KI_EBENEN = [
 // 12-Monats-Dividende bis 'ende' (ms): Summe der letzten f Zahlungen, f = Zahlungen je Jahr aus den 3 Jahren davor.
 // Das starre 365-Tage-Fenster verlor am Rand eine Zahlung (KO 20.11.2026: Ex-Tag Ende November knapp ausserhalb -> Rendite
 // und 3-%-Linie stuerzten im letzten Monat ab). Letzte Zahlung aelter als 400 Tage -> 0 (Dividende eingestellt).
+function kiVorwEps(sz){
+  const l = (Array.isArray(sz) ? sz : []).filter(x=>x.eps>0 && x.ende && new Date(x.ende+'T12:00:00Z') > new Date()).sort((a,b)=>a.ende<b.ende?-1:1);
+  if(!l.length) return null;
+  const ant = Math.max(0, Math.min(1, (new Date(l[0].ende+'T12:00:00Z') - new Date())/31557600000));
+  return l[0].eps*ant + (l[1] ? l[1].eps : l[0].eps)*(1-ant);
+}
 function kiDivTtm(divs, ende){
   const p = []; for(const [d,b] of divs){ const x = new Date(d+'T12:00:00Z').getTime(); if(x<=ende) p.push([x, Number(b)]); }
   if(!p.length) return 0; p.sort((a,b)=>a[0]-b[0]);
@@ -86,6 +92,7 @@ function kiSwings(k, n){
 }
 function kiEma(werte, n){ const a = 2/(n+1); let e = null; return werte.map(v=>{ if(v==null) return e; e = e==null ? v : v*a + e*(1-a); return e; }); }
 let _kiTab = 'zonen', _kiEbene = {}, _kiFcModus = 'schaetzung';
+let _kiFcNpeJ = 5; try{ const v = +localStorage.getItem('kiFcNpeJ'); if([5,7,10,15].includes(v)) _kiFcNpeJ = v; }catch(e){}   // Normal-KGV-Zeitraum (Vorlage "Scenario 5-15 FY")
 // Eigenes KGV (Vorlage "Custom Val. Ratio") und eigene Prognose (Vorlage Forecasting "Custom"), im Browser gemerkt
 let _kiCvr = (()=>{ try{ return Number(localStorage.getItem('kiCvr')) || 20; } catch(e){ return 20; } })();
 let _kiFcEigen = (()=>{ try{ const x = JSON.parse(localStorage.getItem('kiFcEigen')||'null'); return x && x.pe>0 ? x : {g:8, pe:18}; } catch(e){ return {g:8, pe:18}; } })();
@@ -94,7 +101,7 @@ let _kiVergleich = (()=>{ try{ return localStorage.getItem('kiVergleich') || 'SP
 document.addEventListener('change', e=>{
   const t = e.target; if(!t || !t.matches) return;
   const zahl = v=>Number(String(v).replace(',', '.'));
-  if(t.matches('[data-ki-vergleich]')){ const v = String(t.value||'').trim().toUpperCase().replace(/[^A-Z0-9.\-^=]/g,'') || 'SPY'; _kiVergleich = v; try{ localStorage.setItem('kiVergleich', v); } catch(x){}
+  if(t.matches('[data-ki-vergleich]')){ const v = String(t.value||'').toUpperCase().split(/[,;\s]+/).map(x=>x.replace(/[^A-Z0-9.\-^=]/g,'')).filter(Boolean).slice(0,4).join(', ') || 'SPY'; _kiVergleich = v; try{ localStorage.setItem('kiVergleich', v); } catch(x){}
     if(_kiPerfArg) kiPerfZeichnen(..._kiPerfArg); return; }
   if(t.matches('[data-ki-cvr]')){ const v = zahl(t.value); if(v>0){ _kiCvr = v; try{ localStorage.setItem('kiCvr', v); } catch(x){} } }
   else if(t.matches('[data-ki-fc-g],[data-ki-fc-pe]')){ const v = zahl(t.value); if(!isFinite(v)) return; if(t.matches('[data-ki-fc-g]')) _kiFcEigen.g = v; else if(v>0) _kiFcEigen.pe = v; try{ localStorage.setItem('kiFcEigen', JSON.stringify(_kiFcEigen)); } catch(x){} }
@@ -252,7 +259,7 @@ function kiChartModal(){
       <label style="font-size:11.5px;display:inline-flex;align-items:center;gap:3px;margin-left:6px;" title="Faktor für die Fair-Value-Linie (Standard 15 = Kurs-Gewinn-Verhältnis, das langfristig als fair gilt)">Fair Value = <input type="number" data-ki-fvr="1" value="15" min="3" max="60" step="0.5" style="width:52px;padding:1px 4px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);">×</label>
       <label style="font-size:11.5px;display:inline-flex;align-items:center;gap:3px;margin-left:4px;" title="Aktienvergütung ist ein echter Kostenfaktor; bereinigte Gewinne (Analysten, Datendienste) rechnen sie meist heraus"><input type="checkbox" data-ki-sbc="1" checked> ohne Aktienvergütung</label>
       <span style="width:10px;"></span>
-      ${[['max','MAX'],['gewinn','Gewinn-Zeitraum'],[20,'20J'],[15,'15J'],[10,'10J'],[8,'8J'],[5,'5J'],[3,'3J'],[2,'2J'],[1,'1J']].map(([w,t])=>`<button type="button" class="range-btn" data-ki-jahre="${w}">${t}</button>`).join('')}
+      ${[['max','MAX'],['gewinn','Gewinn-Zeitraum'],[20,'20J'],[15,'15J'],[10,'10J'],[8,'8J'],[5,'5J'],[3,'3J'],[2,'2J'],[1,'1J']].map(([w,t])=>`<button type="button" class="range-btn" data-ki-jahre="${w}">${t}</button>`).join('')}<button type="button" class="range-btn" data-ki-log title="Logarithmische Kursachse: gleiche prozentuale Bewegung = gleiche Höhe (gut für lange Zeiträume)">Log</button>
     </div>
     <div id="kiChartKacheln" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;"><span id="kiKachelKi" style="display:contents;"></span><span id="kiKachelBew" style="display:contents;"></span><span id="kiKachelDiv" style="display:contents;"></span></div>
     <div id="kiChartEbenen" style="display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;margin-bottom:6px;"></div>
@@ -302,18 +309,26 @@ function kiChartModal(){
     const bb = e.target.closest('[data-ki-basis]'); if(bb){ _kiBasis = bb.dataset.kiBasis; _kiBasisManuell = true; const m = document.getElementById('kiBasisMenue'); if(m) m.style.display='none'; chartZeichnen(_kiChart.ctx, _kiChart.interval || '1mo'); return; }
     if(!e.target.closest('#kiBasisMenue')){ const m = document.getElementById('kiBasisMenue'); if(m) m.style.display='none'; }
     const st = e.target.closest('[data-ki-stil]'); if(st){ _kiStil = st.dataset.kiStil; chartZeichnen(_kiChart.ctx, _kiChart.interval || '1mo'); return; }
+    if(e.target.closest('[data-ki-log]')){ _kiLog = !_kiLog; try{ localStorage.setItem('kiLog', _kiLog ? '1' : '0'); }catch(e2){} kiLogAnwenden(); return; }
     const jb = e.target.closest('[data-ki-jahre]'); if(jb){ const w = jb.dataset.kiJahre; _kiJahre = (w==='max' ? null : (w==='gewinn' ? 'gewinn' : +w));
       o.querySelectorAll('[data-ki-jahre]').forEach(b=>b.classList.toggle('active', b===jb)); kiZeitraumAnwenden(); return; }
   });
   o.addEventListener('change', e=>{
     if(e.target.closest('[data-ki-fvr]') && _kiChart){ const w = parseFloat(String(e.target.value).replace(',','.')); if(w>=3 && w<=60){ _kiFvr = w; chartZeichnen(_kiChart.ctx, _kiChart.interval || '1mo'); } return; }
     if(e.target.closest('[data-ki-sbc]') && _kiChart){ _kiSbcRaus = e.target.checked; chartZeichnen(_kiChart.ctx, _kiChart.interval || '1mo'); return; }
+    if(e.target.closest('[data-ki-fc-npej]') && _kiChart){ _kiFcNpeJ = +e.target.value || 5; try{ localStorage.setItem('kiFcNpeJ', String(_kiFcNpeJ)); }catch(e2){} chartZeichnen(_kiChart.ctx, _kiChart.interval || '1mo'); return; }
     const cb = e.target.closest('[data-ki-ebene]');
     if(cb && _kiChart){ _kiEbene[cb.dataset.kiEbene] = cb.checked; chartZeichnen(_kiChart.ctx, _kiChart.interval || '1mo'); }
   });
   return o;
 }
+let _kiLog = false; try{ _kiLog = localStorage.getItem('kiLog') === '1'; }catch(e){}
+function kiLogAnwenden(){
+  document.querySelectorAll('#kiChartOverlay [data-ki-log]').forEach(b=>b.classList.toggle('active', _kiLog));
+  try{ if(_kiChart && _kiChart.chart) _kiChart.chart.priceScale('right').applyOptions({mode: _kiLog ? 1 : 0}); }catch(e){}
+}
 function kiZeitraumAnwenden(){
+  kiLogAnwenden();
   const c = _kiChart; if(!c || !c.chart || !c.zeiten) return;
   const z = c.zeiten, ts = c.chart.timeScale();
   const bis = c.bisZukunft || z[z.length-1];
@@ -479,6 +494,10 @@ async function acBewertungZeile(sym, name, sektor){
     z.fv = wert*_kiFvr; z.abw = (kurs/z.fv-1)*100; z.kgv = kurs/wert;
     if(npe){ z.normWert = wert*npe; z.abwN = (kurs/z.normWert-1)*100; }
     if(npe && g!=null && isFinite(g)) z.ror = (Math.pow(wert*Math.pow(1+Math.max(-20,Math.min(30,g))/100,5)*npe/kurs, 1/5)-1)*100 + z.divR;
+    // Bewertung mit dem Gewinn der naechsten 12 Monate (Konsens) - nur ohne Waehrungsumrechnung und fuer Gewinn-Bezuege
+    const wR = String(rh && rh.waehrung || '').toUpperCase(), wQ = String(q.currency || '').toUpperCase();
+    if(npe && (z.basis==='Gewinn operativ' || z.basis==='Gewinn GAAP' || /gewinn/i.test(z.basis||'')) && (!wR || !wQ || wR===wQ)){ const vw = kiVorwEps(rh && rh.schaetzung);
+      if(vw>0){ z.wertVorw = vw; z.abwNVorw = (kurs/(vw*npe)-1)*100; z.abwVorw = (kurs/(vw*_kiFvr)-1)*100; } }
   }
   return z;
 }
@@ -499,16 +518,17 @@ function acListeZeichnen(){
     roe15:z=>z.roe>=15, ldk50:z=>z.ldk!=null && z.ldk<=50, fcfdiv:z=>z.divR>0 && z.fcfDiv5>=1,
     qualitaet:z=>z.roe>=15 && z.ldk!=null && z.ldk<=50 && deckt(z) && z.abwN<0,
     champ:z=>z.folge>=25 && fair(z), contender:z=>z.folge>=10 && z.folge<25 && fair(z), challenger:z=>z.folge>=5 && z.folge<10 && fair(z),
-    growth:z=>z.g>=10 && fair(z) && z.ror>=10 && z.kgv>0 && z.kgv/z.g<=1.5, growthret:z=>z.g>=15 && fair(z)};
+    growth:z=>z.g>=10 && fair(z) && z.ror>=10 && z.kgv>0 && z.kgv/z.g<=1.5, growthret:z=>z.g>=15 && fair(z),
+    einbruch:z=>z.einbruch!=null, vorwunter:z=>z.abwNVorw!=null && z.abwNVorw<0};
   let l = _acListe.filter(z=>!f || (F[f] && !z.fehler && F[f](z)));
   const {k, auf} = _acSort;
   l = l.slice().sort((a,b)=>{ const x = a[k], y = b[k]; if(x==null && y==null) return 0; if(x==null) return 1; if(y==null) return -1; return (typeof x==='string' ? x.localeCompare(y) : x-y) * (auf?1:-1); });
-  const spalten = [['sym','Symbol'],['name','Name'],['kat','Liste'],['basis','Bewertet nach'],['kurs','Kurs'],['kgv','KGV'],['fv','Fair Value'],['abw','Kurs vs. FV'],['npe','Normal-KGV'],['normWert','Wert bei Normal'],['abwN','Kurs vs. Normal'],['g','Wachstum'],['ror','Erw. Rendite p. a.'],['divR','Div.-Rendite'],['folge','Erhöhungen'],['roe','ROE'],['ldk','Schulden/Kap.'],['fcfDiv5','FCF/Div. 5J'],['kaufPct','Kaufempf.']];
+  const spalten = [['sym','Symbol'],['name','Name'],['kat','Liste'],['basis','Bewertet nach'],['kurs','Kurs'],['kgv','KGV'],['fv','Fair Value'],['abw','Kurs vs. FV'],['npe','Normal-KGV'],['normWert','Wert bei Normal'],['abwN','Kurs vs. Normal'],['abwNVorw','Normal vorwärts'],['g','Wachstum'],['ror','Erw. Rendite p. a.'],['divR','Div.-Rendite'],['folge','Erhöhungen'],['roe','ROE'],['ldk','Schulden/Kap.'],['fcfDiv5','FCF/Div. 5J'],['kaufPct','Kaufempf.']];
   const pr = v=> v==null ? '–' : `<span class="${v<-10?'pos':(v>10?'neg':'')}">${v>0?'+':''}${kiNum(v,0)} %</span>`;
   tab.innerHTML = `<thead><tr>${spalten.map(([s2,t])=>`<th data-ac-sort="${s2}" style="cursor:pointer;white-space:nowrap;">${t}${_acSort.k===s2?(auf?' ▲':' ▼'):''}</th>`).join('')}</tr></thead><tbody>${l.map(z=>`<tr data-ac-sym="${escapeHtml(z.sym)}" style="cursor:pointer;">
     <td><b>${escapeHtml(z.sym)}</b></td><td>${escapeHtml((z.name||'').slice(0,28))}</td><td style="white-space:nowrap;">${z.kat ? escapeHtml(KI_DDB_ZEICHEN[z.kat]||z.kat) : '–'}</td>
-    ${z.fehler ? `<td colspan="16" class="muted">${escapeHtml(z.fehler)}</td>` : `<td>${escapeHtml(z.basis||'')}${z.einbruch!=null?` <span title="Letzter Wert ${z.einbruch} % unter dem Median der 3 Vorjahre – meist Sonderlasten. Bewertung unsicher, im Chart prüfen.${z.abwNVorw!=null ? ' Mit Vorwärts-Gewinn (Konsens 12 Monate) ' + kiNum(z.wertVorw,2) + ': Kurs vs. Normal ' + kiNum(z.abwNVorw,0) + ' %, vs. Fair Value ' + kiNum(z.abwVorw,0) + ' %.' : ''}" style="color:#d97706;cursor:help;">⚠ ${z.einbruch} %</span>`:''}${z.fx?` <span class="muted" title="aus ${escapeHtml(z.fx)} umgerechnet">(${escapeHtml(z.fx)})</span>`:''}</td><td>${kiNum(z.kurs)}</td><td>${z.bank ? `<span title="Kurs-Buchwert-Verhältnis (Bank)">KBV ${kiNum(z.kbv,2)}</span>` : (z.kgv!=null?kiNum(z.kgv,1):'–')}</td><td>${z.fv!=null?kiNum(z.fv):'–'}</td><td>${pr(z.abw)}</td>
-    <td>${z.bank ? `<span title="${escapeHtml(acBankTitel(z.bank))}" style="cursor:help;">KBV ${z.npe!=null?kiNum(z.npe,2):'–'}</span>` : (z.npe!=null?kiNum(z.npe,1):'–')}</td><td>${z.normWert!=null?kiNum(z.normWert):'–'}</td><td>${pr(z.abwN)}</td><td>${z.g!=null&&isFinite(z.g)?kiNum(z.g,1)+' %':'–'}</td>
+    ${z.fehler ? `<td colspan="17" class="muted">${escapeHtml(z.fehler)}</td>` : `<td>${escapeHtml(z.basis||'')}${z.einbruch!=null?` <span title="Letzter Wert ${z.einbruch} % unter dem Median der 3 Vorjahre – meist Sonderlasten. Bewertung unsicher, im Chart prüfen.${z.abwNVorw!=null ? ' Mit Vorwärts-Gewinn (Konsens 12 Monate) ' + kiNum(z.wertVorw,2) + ': Kurs vs. Normal ' + kiNum(z.abwNVorw,0) + ' %, vs. Fair Value ' + kiNum(z.abwVorw,0) + ' %.' : ''}" style="color:#d97706;cursor:help;">⚠ ${z.einbruch} %</span>`:''}${z.fx?` <span class="muted" title="aus ${escapeHtml(z.fx)} umgerechnet">(${escapeHtml(z.fx)})</span>`:''}</td><td>${kiNum(z.kurs)}</td><td>${z.bank ? `<span title="Kurs-Buchwert-Verhältnis (Bank)">KBV ${kiNum(z.kbv,2)}</span>` : (z.kgv!=null?kiNum(z.kgv,1):'–')}</td><td>${z.fv!=null?kiNum(z.fv):'–'}</td><td>${pr(z.abw)}</td>
+    <td>${z.bank ? `<span title="${escapeHtml(acBankTitel(z.bank))}" style="cursor:help;">KBV ${z.npe!=null?kiNum(z.npe,2):'–'}</span>` : (z.npe!=null?kiNum(z.npe,1):'–')}</td><td>${z.normWert!=null?kiNum(z.normWert):'–'}</td><td>${pr(z.abwN)}</td><td title="${z.wertVorw!=null ? 'Gewinn nächste 12 Monate (Konsens) ' + kiNum(z.wertVorw,2) + ' × Normal-KGV' : 'keine Schätzung'}">${pr(z.abwNVorw)}</td><td>${z.g!=null&&isFinite(z.g)?kiNum(z.g,1)+' %':'–'}</td>
     <td class="${z.ror==null?'':(z.ror>=10?'pos':(z.ror<0?'neg':''))}">${z.ror!=null?kiNum(z.ror,1)+' %':'–'}</td><td>${z.divR?kiNum(z.divR,2)+' %':'–'}</td><td${z.folgeSA?' title="Jahre in Folge erhöht, stockanalysis.com"':''}>${z.folge||0}</td><td class="${z.roe==null?'':(z.roe>=15?'pos':(z.roe<5?'neg':''))}" title="Gewinn ÷ Ø Eigenkapital (4 Quartale)">${z.roe!=null?kiNum(z.roe,1)+' %':'–'}</td><td class="${z.ldk==null?'':(z.ldk<=50?'pos':(z.ldk>80?'neg':''))}" title="Langfr. Schulden ÷ (Schulden + Eigenkapital), letztes Quartal">${z.ldk!=null?kiNum(z.ldk,0)+' %':'–'}</td><td class="${z.fcfDiv5==null?'':(z.fcfDiv5>=1.2?'pos':(z.fcfDiv5<1?'neg':''))}" title="Free Cashflow ÷ gezahlte Dividenden, Summe 5 Jahre (≥ 1 = gedeckt)">${z.fcfDiv5!=null?kiNum(z.fcfDiv5,2)+'×':'–'}</td><td class="${z.kaufPct==null?'':(z.kaufPct>=60?'pos':(z.kaufPct<30?'neg':''))}" title="Anteil Kaufempfehlungen (stark kaufen + kaufen) der Analysten, Yahoo">${z.kaufPct!=null?kiNum(z.kaufPct,0)+' % <span class="muted">('+z.kaufN+')</span>':'–'}</td>`}</tr>`).join('')}</tbody>`;
 }
 async function acListeLaden(){
@@ -943,6 +963,10 @@ async function kiAlarmPanelZeichnen(){
   if(_kiChart.fvHeute>0) vor.push(['Fair-Value-Linie (mitlaufend)', _kiChart.fvHeute, true]);
   if(_kiChart.fvWert>0) vor.push(['Fair Value', _kiChart.fvWert]);
   if(_kiChart.npeWert>0) vor.push(['Normal-KGV', _kiChart.npeWert]);
+  // Kennzahl-Alarme als Kursgrenze (Vorlage "Alerts" auf Kennzahlen, Nutzer 20.11.2026): Kurs bei normaler / hoher Dividendenrendite
+  // (Reiter Dividende, 10 J.) und Normal-KGV mit Vorwaerts-Gewinn (bei Gewinneinbruch)
+  const db = window._kiDivBand; if(db && db.sym===String(_kiChart.ctx.sym||'')){ if(db.normal>0) vor.push([`Div.-Rendite normal ${kiNum(db.yNorm*100,2)} %`, db.normal]); if(db.guenstig>0) vor.push([`Div.-Rendite hoch ${kiNum(db.yHoch*100,2)} %`, db.guenstig]); }
+  const vn = window._kiVorwNorm; if(vn && vn.sym===String(_kiChart.ctx.sym||'') && vn.wert>0) vor.push(['Normal-KGV vorwärts', vn.wert]);
   const knopf = ([n,v,dyn])=>`<button type="button" class="range-btn" data-ki-alarm-setzen="1" data-preis="${Number(v)}" data-name="${escapeHtml(n)}" data-bed="below"${dyn?' data-dyn="1" title="Grenze läuft mit der orangen Fair-Value-Linie mit (nachts neu berechnet)"':''}>${escapeHtml(n)} ${kiNum(v)}</button>`;
   const liste = (data.priceAlerts||[]).filter(x=>x.symbol===sym);
   pnl.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
@@ -1504,9 +1528,11 @@ async function kiPerfZeichnen(j, pkt, FVR, npe){
     for(let i=0;i<li.length-1;i++) if(t>=li[i][0] && t<=li[i+1][0]){ const f = (new Date(t)-new Date(li[i][0]))/Math.max(1,(new Date(li[i+1][0])-new Date(li[i][0]))); return li[i][1]+(li[i+1][1]-li[i][1])*f; } return null; };
   const ab = (()=>{ const d = new Date(); d.setUTCFullYear(d.getUTCFullYear()-20); const g = d.toISOString().slice(0,10); return li[0][0] > g ? li[0][0] : g; })();
   const k = j.kerzen.filter(x=>x[0] >= ab && lin(x[0])!=null); if(k.length<6) return;
-  let sp = null; try{ sp = await (await fetch('quote.php?ohlc=1&symbols=' + encodeURIComponent(_kiVergleich) + '&interval=1mo&range=max', {cache:'no-store'})).json(); } catch(e){}
-  const spAm = {}; (sp && sp.kerzen || []).forEach(x=>{ spAm[x[0].slice(0,7)] = x[4]; });
-  const k0 = k[0][4], e0 = lin(k[0][0]), s0 = spAm[k[0][0].slice(0,7)];
+  const vglSym = String(_kiVergleich||'SPY').split(/[,\s]+/).filter(Boolean).slice(0,4);
+  const vgl = await Promise.all(vglSym.map(async s=>{ try{ const sp = await (await fetch('quote.php?ohlc=1&symbols=' + encodeURIComponent(s) + '&interval=1mo&range=max', {cache:'no-store'})).json();
+    const am = {}; (sp && sp.kerzen || []).forEach(x=>{ am[x[0].slice(0,7)] = x[4]; }); return {s, am}; } catch(e){ return {s, am:{}}; } }));
+  const k0 = k[0][4], e0 = lin(k[0][0]);
+  const vglFarben = ['#2563eb', '#16a34a', '#9333ea', '#db2777'];
   const lab = k.map(x=>x[0].slice(0,7));
   const opt = (fmt)=>({responsive:true, maintainAspectRatio:false, animation:false, interaction:{mode:'index', intersect:false}, elements:{point:{radius:0}},
     plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}, tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.parsed.y)}`}}},
@@ -1515,7 +1541,7 @@ async function kiPerfZeichnen(j, pkt, FVR, npe){
   _kiPerfCharts.push(new Chart(c1, {type:'line', data:{labels:lab, datasets:[
     {label:'Kurs', data:k.map(x=>(x[4]/k0-1)*100), borderColor:'#111', borderWidth:2},
     {label:'Gewinn je Aktie', data:k.map(x=>(lin(x[0])/e0-1)*100), borderColor:'#ea580c', borderWidth:2},
-    ...(s0 ? [{label:'Kurs ' + _kiVergleich, data:k.map(x=>{ const v = spAm[x[0].slice(0,7)]; return v ? (v/s0-1)*100 : null; }), borderColor:'#2563eb', borderWidth:1.5, borderDash:[4,3]}] : [])]}, options:opt(pz)}));
+    ...vgl.map((v2,i)=>{ const s0 = v2.am[k[0][0].slice(0,7)]; return s0 ? {label:'Kurs ' + v2.s, data:k.map(x=>{ const v = v2.am[x[0].slice(0,7)]; return v ? (v/s0-1)*100 : null; }), borderColor:vglFarben[i], borderWidth:1.5, borderDash:[4,3]} : null; }).filter(Boolean)]}, options:opt(pz)}));
   const kgv = k.map(x=>{ const e = lin(x[0]); return e>0 ? Math.min(80, x[4]/e) : null; });
   _kiPerfCharts.push(new Chart(c2, {type:'line', data:{labels:lab, datasets:[
     {label:'KGV (Kurs ÷ Gewinn)', data:kgv, borderColor:'#111', borderWidth:2},
@@ -1847,7 +1873,7 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
     const divG = dk && isFinite(dk.cagr5) ? Math.max(-10, Math.min(15, dk.cagr5)) : 0;
     const jahre = [{t:letzt.t, date:letzt.date, eps:letzt.eps, div:divL ? divL.div : 0, n:null, ist:true},
       ...prog.map((p,i)=>({t:p.t, date:p.t, eps:p.eps, div:divL ? divL.div*Math.pow(1+divG/100, i+1) : 0, n:p.fort ? 'fortg.' : (p.n ?? null), ist:false}))];
-    const npe5 = (()=>{ const v = pkt.slice(-5).filter(p=>p.eps>0 && schlussAm(p.t)).map(p=>schlussAm(p.t)/p.eps).sort((a,b)=>a-b); return v.length ? (v.length%2 ? v[(v.length-1)/2] : (v[v.length/2-1]+v[v.length/2])/2) : npe; })();
+    const npe5 = (()=>{ const v = pkt.slice(-_kiFcNpeJ).filter(p=>p.eps>0 && schlussAm(p.t)).map(p=>schlussAm(p.t)/p.eps).sort((a,b)=>a-b); return v.length ? (v.length%2 ? v[(v.length-1)/2] : (v[v.length/2-1]+v[v.length/2])/2) : npe; })();
     const modus = _kiFcModus || 'schaetzung';
     let fi = null; try{ fi = await (await fetch('fitness.php?info=1&symbol=' + encodeURIComponent(String(_kiChart?.ctx?.sym||'')), {cache:'no-store'})).json(); } catch(e){}
     if(meins && _kiChart!==meins && _kiChart && _kiChart.chart!==chart) return;
@@ -1876,7 +1902,7 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
       : `<span style="color:${f};margin-right:4px;">●</span>`;
     const zeile = (t, v, f, art)=>`<tr${f?` style="background:${f}14;"`:''}><td style="padding:3px 6px;${f?`border-left:3px solid ${f};`:''}">${f?zeichen(f, art||'punkt'):''}${t}</td><td style="padding:3px 6px;text-align:right;font-weight:700;width:86px;white-space:nowrap;">${v}</td></tr>`;
     box.innerHTML = `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;"><b style="font-size:15px;">Prognose</b>
-        ${knopf('schaetzung','Schätzungen')}${knopf('normal','Normal-KGV 5 J.')}${knopf('lt','LT-Wachstum')}${knopf('hist','Hist. Wachstum')}${knopf('eigen','Eigene')}
+        ${knopf('schaetzung','Schätzungen')}${knopf('normal','Normal-KGV '+_kiFcNpeJ+' J.')}${modus==='normal' ? `<select data-ki-fc-npej style="padding:1px 3px;font-size:11.5px;" title="Geschäftsjahre für das Normal-KGV">${[5,7,10,15].map(n=>`<option value="${n}"${n===_kiFcNpeJ?' selected':''}>${n} GJ</option>`).join('')}</select>` : ''}${knopf('lt','LT-Wachstum')}${knopf('hist','Hist. Wachstum')}${knopf('eigen','Eigene')}
         ${modus==='eigen' ? `<label style="font-size:11.5px;">Wachstum <input data-ki-fc-g type="text" inputmode="decimal" value="${kiNum(_kiFcEigen.g,1)}" style="width:46px;padding:1px 4px;"> %</label><label style="font-size:11.5px;">KGV <input data-ki-fc-pe type="text" inputmode="decimal" value="${kiNum(_kiFcEigen.pe,1)}" style="width:46px;padding:1px 4px;"></label>` : ''}
         <span class="muted" style="font-size:11.5px;">${gMod!=null ? `Gewinn wächst ${kiNum(gMod,1)} % p. a. (${escapeHtml(gText)})` : (gText ? escapeHtml(gText)+' · ' : '') + 'Schätzung: ' + escapeHtml(progQuelle)}</span></div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;">
@@ -1917,6 +1943,14 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
     fl(jahre.map(x=>({time:x.t, value:x.eps*FVR})), 'rgba(22,128,61,.82)', '#ea580c', 2, true);
     const dl = fc.addLineSeries({color:'#eab308', lineWidth:2, pointMarkersVisible:true, priceLineVisible:false, lastValueVisible:false}); dl.setData(jahre.map(x=>({time:x.t, value:x.div*FVR})));
     if(npe5){ const nl = fc.addLineSeries({color:'#f8fafc', lineWidth:2, pointMarkersVisible:true, priceLineVisible:false, lastValueVisible:false}); nl.setData(jahre.map(x=>({time:x.t, value:x.eps*npe5}))); }
+    // KGV-Korridor wie Vorlage "Corridor": um das Normal-KGV (0,5 / 0,7 / 1 / 1,4 x) bzw. fest 7,5 / 10,5 / 15 / 21 x (Nutzer 20.11.2026)
+    { const kor = (modus==='normal' && npe5) ? [npe5*0.5, npe5*0.7, npe5*1.4] : [7.5, 10.5, 21];
+      kor.forEach(f2=>{ const s2 = fc.addLineSeries({color:'rgba(37,99,235,.55)', lineWidth:1, lineStyle:LS.Dotted, pointMarkersVisible:true, pointMarkersRadius:2, priceLineVisible:false, lastValueVisible:true, title:kiNum(f2,1)+'×', crosshairMarkerVisible:false});
+        s2.setData(jahre.map(x=>({time:x.t, value:x.eps*f2}))); }); }
+    // Analystenspanne (Vorlage "Estimate Range"): Fair Value bei niedrigster und hoechster Schaetzung
+    if(modus==='schaetzung'){ const sp = jahre.filter(x=>!x.ist).map(x=>{ const tr = trendAm(x); return tr && tr.tief>0 && tr.hoch>0 ? {t:x.t, l:tr.tief, h:tr.hoch} : null; }).filter(Boolean);
+      if(sp.length){ [['h','hoch'],['l','tief']].forEach(([k2,n2])=>{ const s3 = fc.addLineSeries({color:'rgba(234,88,12,.6)', lineWidth:1, lineStyle:LS.Dashed, priceLineVisible:false, lastValueVisible:false, crosshairMarkerVisible:false, title:'Analysten '+n2});
+        s3.setData([{t:jahre[0].t, v:jahre[0].eps}, ...sp.map(x=>({t:x.t, v:x[k2]}))].map(x=>({time:x.t, value:x.v*FVR}))); }); } }
     const kl = fc.addLineSeries({color:'#111', lineWidth:2, priceLineVisible:false, lastValueVisible:true, title:'Kurs'}); kl.setData(kAb.map(k=>({time:k[0], value:k[4]})));
     if(kAb.length){ const zl = fc.addLineSeries({color:'#111', lineWidth:2, lineStyle:LS.Dashed, priceLineVisible:false, lastValueVisible:true, title:kiNum(faktor,1)+'×'}); zl.setData([{time:kAb[kAb.length-1][0], value:kursJetzt}, {time:ende.t, value:kursZiel}]); }
     fc.timeScale().fitContent();
@@ -1979,11 +2013,10 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
       const vor = pkt.slice(-4,-1).map(p=>p.eps).filter(v=>v>0).sort((a,b)=>a-b); if(vor.length<2 || !(epsT>0)) return '';
       const med = vor.length%2 ? vor[(vor.length-1)/2] : (vor[vor.length/2-1]+vor[vor.length/2])/2;
       if(!(epsT < 0.6*med) || !(basis==='operativ' || basis==='gaap')) return '';
-      const sz = (rh && Array.isArray(rh.schaetzung) ? rh.schaetzung : []).filter(x=>x.eps>0 && x.ende && new Date(x.ende+'T12:00:00Z') > new Date()).sort((a,b)=>a.ende<b.ende?-1:1);
-      if(!sz.length) return '';
-      const ant = Math.max(0, Math.min(1, (new Date(sz[0].ende+'T12:00:00Z') - new Date())/31557600000));
-      const vw = sz[0].eps*ant + (sz[1] ? sz[1].eps : sz[0].eps)*(1-ant), fvV = vw*FVR, abV = (kurs/fvV-1)*100, nV = npe ? (kurs/(vw*npe)-1)*100 : null;
-      return kachel('⚠ Mit Vorwärts-Gewinn', kiNum(fvV), `Gewinn 12 M. ${kiNum(vw,2)} (Konsens) · ${abV>=0 ? kiNum(abV,0)+' % über' : kiNum(-abV,0)+' % unter'} FV${nV!=null ? ' · Normal-KGV ' + (nV>=0?'+':'') + kiNum(nV,0) + ' %' : ''} · letzter Gewinn ${kiNum((epsT/med-1)*100,0)} % unter Vorjahren`, abV>10 ? '#dc2626' : (abV<-10 ? '#16a34a' : '#d97706'));
+      const vw = kiVorwEps(rh && rh.schaetzung); if(!(vw>0)) return '';
+      const fvV = vw*FVR, abV = (kurs/fvV-1)*100, nV = npe ? (kurs/(vw*npe)-1)*100 : null;
+      window._kiVorwNorm = npe ? {sym:String(_kiChart?.ctx?.sym||''), wert: vw*npe} : null;
+      return kachel(`⚠ Vorwärts (Einbruch ${kiNum((epsT/med-1)*100,0)} %)`, kiNum(fvV), `Gewinn 12 M. ${kiNum(vw,2)} · FV ${abV>=0?'+':''}${kiNum(abV,0)} %${nV!=null ? ' · Normal ' + (nV>=0?'+':'') + kiNum(nV,0) + ' %' : ''}`, abV>10 ? '#dc2626' : (abV<-10 ? '#16a34a' : '#d97706'));
     })();
   const zeilen = pkt.slice(-12);
   const zelle = (inhalt, extra='')=>`<td style="padding:2px 6px;text-align:right;${extra}">${inhalt}</td>`;
@@ -2038,11 +2071,28 @@ async function kiBewZeichnen(chart, j, interval, zeiten, kerzeZu, divs, meins){
   const cv = document.getElementById('kiScoreNetz');
   if(cv && typeof Chart!=='undefined'){
     const werte = netz.map(([,w])=>w==null?0:w);
-    new Chart(cv, {type:'radar', data:{labels:netz.map(([n])=>n), datasets:[{data:werte, backgroundColor:'rgba(37,99,235,.18)', borderColor:'#2563eb', pointBackgroundColor:'#2563eb', borderWidth:2}]},
+    const netzChart = new Chart(cv, {type:'radar', data:{labels:netz.map(([n])=>n), datasets:[{label:String(j.symbol||''), data:werte, backgroundColor:'rgba(37,99,235,.18)', borderColor:'#2563eb', pointBackgroundColor:'#2563eb', borderWidth:2}]},
       options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{r:{min:0, max:100, ticks:{stepSize:25, display:false}, pointLabels:{font:{size:11}}}}}});
+    // Vergleich mit Branchenwerten (Vorlage "Peer companies comparison", Nutzer 20.11.2026): bis 5 Vergleichsfirmen (Yahoo-Empfehlungen,
+    // gleiche Branche aus Depot/Watchlist), gleicher Score aus deren Fundamentaldaten; Vorhersagbarkeit ohne Gewinnreihe nur aus Piotroski.
+    (async ()=>{ try{
+      const sym = String(j.symbol||''); const v = await (await fetch('fitness.php?vergleich=1&symbol=' + encodeURIComponent(sym), {cache:'no-store'})).json();
+      const peers = (v && v.werte || []).map(x=>x.symbol||x.sym).filter(s=>s && s!==sym && !/[^A-Z0-9.\-]/.test(s)).slice(0,5);
+      if(!peers.length || !cv.isConnected) return;
+      const zeilen = (await Promise.all(peers.map(async s=>{ try{ const fP = await kiBewDaten(s); if(!fP || fP.error) return null;
+        const n2 = kiScoreNetz(fP, Number(fP.growthRatePct), []); return {s, n2}; } catch(e){ return null; } }))).filter(Boolean);
+      if(!zeilen.length || !cv.isConnected) return;
+      const schnitt = netz.map((_,i)=>{ const w = zeilen.map(z=>z.n2[i][1]).filter(x=>x!=null); return w.length ? Math.round(w.reduce((a,b)=>a+b,0)/w.length) : 0; });
+      netzChart.data.datasets.push({label:'Vergleich Ø', data:schnitt, backgroundColor:'rgba(100,116,139,.08)', borderColor:'#64748b', borderDash:[4,3], pointBackgroundColor:'#64748b', borderWidth:1.5});
+      netzChart.options.plugins.legend = {display:true, position:'bottom', labels:{boxWidth:10, font:{size:10.5}}}; netzChart.update();
+      const ges = n2=>{ const w = n2.map(([,x])=>x).filter(x=>x!=null); return w.length ? Math.round(w.reduce((a,b)=>a+b,0)/w.length) : null; };
+      const info = document.createElement('div'); info.className = 'muted'; info.style.cssText = 'font-size:10.5px;margin-top:2px;';
+      info.innerHTML = 'Gesamt ' + escapeHtml(sym) + ' <b>' + (ges(netz) ?? '–') + '</b> · ' + zeilen.map(z=>escapeHtml(z.s) + ' ' + (ges(z.n2) ?? '–')).join(' · ') + ' (Vergleichsfirmen: Yahoo-Empfehlungen und gleiche Branche)';
+      cv.parentElement.after(info);
+    } catch(e){} })();
   }
   spyHtml().then(h=>{ const el = document.getElementById('kiSpyTab'); if(!el) return; el.innerHTML = h + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:10px;">
-      <div><b style="font-size:12.5px;">Kumulierte Änderung: Kurs und Gewinn gegen</b> <input data-ki-vergleich type="text" value="${escapeHtml(_kiVergleich)}" title="Vergleichsaktie oder Index-ETF (Yahoo-Symbol), z. B. SPY, QQQ, KO, SAP.DE" style="width:80px;padding:1px 4px;font-size:12px;"><div style="position:relative;height:240px;"><canvas id="kiPerfKum"></canvas></div></div>
+      <div><b style="font-size:12.5px;">Kumulierte Änderung: Kurs und Gewinn gegen</b> <input data-ki-vergleich type="text" value="${escapeHtml(_kiVergleich)}" title="Bis zu 4 Vergleichswerte mit Komma (Yahoo-Symbole), z. B. SPY, GIS oder QQQ, KO, SAP.DE" style="width:150px;padding:1px 4px;font-size:12px;"><div style="position:relative;height:240px;"><canvas id="kiPerfKum"></canvas></div></div>
       <div><b style="font-size:12.5px;">Bewertung im Zeitverlauf: KGV gegen Fair Value</b><div style="position:relative;height:240px;"><canvas id="kiPerfKgv"></canvas></div></div></div>`;
     kiPerfZeichnen(j, pkt, FVR, npe); });
 }
@@ -2381,6 +2431,7 @@ async function chartZeichnenIntern(ctx, interval){
           ls.setData(zeiten.filter(z=>tag(z) >= grenze).map(z=>{ const s = ttm(z); return s>0 ? {time:z, value:s/y} : {time:z}; }));
         });
         const sJ = ttm(zeiten[zeiten.length-1]), kJ = j.kerzen[j.kerzen.length-1][4], yJ = kJ>0 ? sJ/kJ : 0;
+        window._kiDivBand = {sym:String(ctx.sym||''), guenstig: sJ/yHoch, normal: sJ/yNorm, yHoch, yNorm};   // fuer Kursalarme (Nutzer 20.11.2026)
         const urteil = yJ >= yHoch ? ['günstig','#16a34a'] : yJ <= yTief ? ['teuer','#dc2626'] : yJ >= yNorm ? ['eher günstig','#15803d'] : ['eher teuer','#b45309'];
         divInfo += `<span><b>Dividenden-Bewertung (10 J.):</b> Rendite jetzt ${kiNum(yJ*100,2)} % · normal ${kiNum(yNorm*100,2)} % · Spanne ${kiNum(yTief*100,2)}–${kiNum(yHoch*100,2)} % → <b style="color:${urteil[1]}">${urteil[0]}</b> · Kurs bei normaler Rendite ${kiNum(sJ/yNorm)} ${escapeHtml(wKurs)}</span>`;
       }
