@@ -29,6 +29,64 @@ function br_name($s) { $s = strtolower(preg_replace('/[^a-z0-9 ]/i', ' ', $s)); 
 // SEC-Abruf mit Statuscode: 404 = Kennzeichen gibt es fuer die Firma nicht (normal), alles andere ausser 200 (429 Drosselung,
 // 403, 5xx, Zeitueberschreitung) = Abruf gescheitert -> Ergebnis nicht zwischenspeichern, sonst fehlen Reihen 7 Tage lang still
 // (gefunden 06.11.2026: Realty Income ohne GAAP-Reihe, waehrend drei Laeufe parallel abriefen).
+// Text (HTML/XML) von sec.gov, gleiche Kopfzeilen und Wiederholungen wie br_sec_json
+function br_sec_text($url, $timeout = 60) {
+    for ($versuch = 0; $versuch < 2; $versuch++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $timeout, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_ENCODING => 'gzip',
+            CURLOPT_HTTPHEADER => ['User-Agent: ' . SEC_USER_AGENT, 'Accept-Encoding: gzip'], CURLOPT_FOLLOWLOCATION => true]);
+        $body = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+        usleep(150000);
+        if ($code === 200 && $body) return (string) $body;
+        if ($code === 404) return '';
+        sleep(2);
+    }
+    return '';
+}
+// Verwaesserter Gewinn je Aktie je Geschaeftsjahr aus den 10-K-Berichten (XBRL im Bericht bzw. XBRL-Instanzdatei). Jeder 10-K
+// enthaelt 3 Jahre; gelesen wird jeder zweite der letzten 12 Berichte. Vorrang: Wert ohne Gattung, sonst Gattung A / Stammaktie,
+// sonst die erste andere. Neuere Berichte gehen vor (angepasste Vorjahre). Rueckgabe: [Ende => [Wert, Einreichdatum]].
+function br_eps_aus_10k($cik): array {
+    $sub = br_sec_json('https://data.sec.gov/submissions/CIK' . str_pad(ltrim((string) $cik, '0'), 10, '0', STR_PAD_LEFT) . '.json');
+    $r = $sub['filings']['recent'] ?? []; $liste = [];
+    foreach ($r['form'] ?? [] as $i => $f) if ($f === '10-K') $liste[] = ['acc' => $r['accessionNumber'][$i], 'doc' => $r['primaryDocument'][$i], 'filed' => $r['filingDate'][$i]];
+    $liste = array_slice($liste, 0, 12);
+    $cikInt = (int) ltrim((string) $cik, '0'); $out = []; $rang = [];
+    foreach ($liste as $n => $f) {
+        if ($n % 2) continue;
+        $basis = 'https://www.sec.gov/Archives/edgar/data/' . $cikInt . '/' . str_replace('-', '', $f['acc']) . '/';
+        $txt = br_sec_text($basis . $f['doc']);
+        if (stripos($txt, 'EarningsPerShareDiluted') === false || stripos($txt, '<ix:') === false) {   // aeltere Berichte: XBRL-Instanzdatei
+            $idx = br_sec_json($basis . 'index.json'); $xml = null;
+            foreach ($idx['directory']['item'] ?? [] as $it) { $nm = $it['name'] ?? ''; if (preg_match('/_htm\.xml$|^[a-z]+-\d{8}\.xml$/i', $nm)) { $xml = $nm; break; } }
+            $txt = $xml ? br_sec_text($basis . $xml) : '';
+        }
+        if ($txt === '') continue;
+        // Kontexte: id -> Zeitraum + Gattungen
+        $ctx = [];
+        if (preg_match_all('/<(?:xbrli:)?context\b[^>]*\bid="([^"]+)"[^>]*>(.*?)<\/(?:xbrli:)?context>/si', $txt, $m, PREG_SET_ORDER)) foreach ($m as $c) {
+            if (!preg_match('/<(?:xbrli:)?startDate>([\d-]+)</i', $c[2], $s) || !preg_match('/<(?:xbrli:)?endDate>([\d-]+)</i', $c[2], $e)) continue;
+            $tage = (strtotime($e[1]) - strtotime($s[1])) / 86400; if ($tage < 340 || $tage > 380) continue;
+            preg_match_all('/explicitMember[^>]*>([^<]+)</i', $c[2], $mm);
+            $ctx[$c[1]] = ['ende' => $e[1], 'glieder' => $mm[1]];
+        }
+        $fakten = [];
+        if (preg_match_all('/<ix:nonFraction\b([^>]*\bname="us-gaap:EarningsPerShareDiluted"[^>]*)>(.*?)<\/ix:nonFraction>/si', $txt, $m, PREG_SET_ORDER)) {
+            foreach ($m as $x) { if (!preg_match('/contextRef="([^"]+)"/', $x[1], $cr)) continue; $v = (float) str_replace([',', ' '], '', strip_tags($x[2]));
+                if (preg_match('/\bsign="-"/', $x[1])) $v = -$v; if (preg_match('/\bscale="(-?\d+)"/', $x[1], $sc)) $v *= pow(10, (int) $sc[1]); $fakten[] = [$cr[1], $v]; }
+        } elseif (preg_match_all('/<us-gaap:EarningsPerShareDiluted\b[^>]*contextRef="([^"]+)"[^>]*>([^<]+)</si', $txt, $m, PREG_SET_ORDER)) {
+            foreach ($m as $x) $fakten[] = [$x[1], (float) $x[2]];
+        }
+        foreach ($fakten as [$cr, $v]) {
+            if (!isset($ctx[$cr])) continue; $c = $ctx[$cr]; $d = $c['ende'];
+            $g = implode(' ', $c['glieder']);
+            $prio = !$c['glieder'] ? 0 : (preg_match('/ClassA|CommonStockMember|CommonClassA/i', $g) && !preg_match('/ClassB|ClassC/i', $g) ? 1 : 2);
+            if (!isset($rang[$d]) || $prio < $rang[$d]) { $rang[$d] = $prio; $out[$d] = [$v, $f['filed']]; }
+        }
+    }
+    ksort($out);
+    return $out;
+}
 function br_sec_json($url) {
     for ($versuch = 0; $versuch < 3; $versuch++) {
         $ch = curl_init($url);
@@ -115,7 +173,7 @@ function bewertung_reihen($symbol, $neu = false) {
         $waehr = null;
         // Vorgaenger-Firmen mit eigener SEC-Nummer (17.11.2026, BLK: BlackRock meldet seit dem Holding-Umbau 2024 unter einer neuen
         // Nummer, dort nur Jahre ab 2022 -> Chart zeigte 4 Jahre). Aeltere Jahre aus der alten Nummer ergaenzen; neuere Werte haben Vorrang.
-        $VORGAENGER = ['BLK' => ['0001364742']];
+        $VORGAENGER = ['BLK' => ['0001364742'], 'XOM' => ['0000034088']];   // XOM 20.11.2026: neue Nummer 0002115436 noch ohne Jahreswerte
         $ciks = array_merge([$cik], $VORGAENGER[$symbol] ?? []);
         // je Jahr aus allen Kennzeichen zusammengefuehrt (Firmen wechseln das Kennzeichen); Waehrung = Berichtswaehrung der Firma
         $hole = function ($art, $typ = 'geld') use ($ciks, &$tax, &$waehr, $T) {
@@ -157,6 +215,13 @@ function bewertung_reihen($symbol, $neu = false) {
         $beteil = $hole('beteil'); $amort = $hole('amort'); $restr = $hole('restr'); $sbc = $hole('sbc'); $vorSteuerAlle = $hole('vorSt'); $steuer = $hole('steuer'); $capex = $hole('capex');
         $vorSteuer = $vorSteuerAlle;
         $epsJ = $hole('eps', 'jeAktie');
+        // Mehrere Aktiengattungen ohne Gesamtwerte (20.11.2026: V, ERIE, GEF, HVT, STZ - Gewinn je Aktie und Aktienzahl stehen nur je
+        // Gattung, also gar nicht in den companyconcept-Daten): Gewinn je Aktie direkt aus den 10-K-Berichten (Inline-XBRL) lesen.
+        $aktJung = $aktien ? (int) substr(max(array_keys($aktien)), 0, 4) : 0;
+        if (!$epsJ && $tax === 'us-gaap' && $aktJung < (int) date('Y') - 2) {
+            foreach (br_eps_aus_10k($cik) as $d => [$v, $filed]) { $epsJ[$d] = $v; $GLOBALS['br_filed']['eps'][$d] = $filed; }
+            ksort($epsJ);
+        }
         // Aktienzahl fehlt fuer einzelne Jahre (GOOG 17.11.2026: Alphabet meldet sie bis 2021 nur je Aktiengattung -> Reihe "operativ"
         // nur 2022-2025). Dann Gewinn / verwaesserter Gewinn je Aktie; Einreichdatum vom EPS-Wert, damit die Split-Bereinigung unten greift.
         if ($epsJ) {

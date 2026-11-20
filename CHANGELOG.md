@@ -1,5 +1,8 @@
 # Änderungen
 
+## 1.52 – 20.11.2026
+- Bewertung: Visa, Erie, Greif, Haverty's, Constellation Brands und Exxon haben wieder die volle Gewinnhistorie aus den SEC-Berichten (Gewinn je Aktie direkt aus den 10-K-Berichten bzw. alte SEC-Nummer).
+
 ## 1.51 – 20.11.2026
 - Bewertung bei Gewinneinbruch (über 40 % unter den Vorjahren, z. B. Hershey 2025): zusätzlich mit dem Analysten-Gewinn der nächsten 12 Monate, eigene Kachel im Chart und Hinweis in der Bewertungsliste.
 
